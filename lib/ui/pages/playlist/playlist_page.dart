@@ -97,8 +97,12 @@ class _PlaylistPageState extends ConsumerState<PlaylistPage> {
     setState(() => _selected.removeWhere((id) => !aliveIds.contains(id)));
   }
 
-  Future<void> _play(Song song) async {
-    ref.read(audioControllerProvider.notifier).play(Track.fromSong(song));
+  /// 点按歌曲：按当前筛选视图的展示顺序整列入队，并从该曲开始播放。
+  Future<void> _play(Song song, List<Track> tracks) async {
+    final startIndex = tracks.indexWhere((t) => t.id == song.id.toString());
+    ref
+        .read(audioControllerProvider.notifier)
+        .playQueue(tracks, startIndex: startIndex < 0 ? 0 : startIndex);
     await ref.read(mediaRepositoryProvider).markPlayed(song.id);
   }
 
@@ -137,6 +141,7 @@ class _PlaylistPageState extends ConsumerState<PlaylistPage> {
     );
     final sections = buildPlaylistSections(query, songs, tags, songTags);
     final visibleSongs = [for (final s in sections) ...s.songs];
+    final visibleTracks = [for (final s in visibleSongs) Track.fromSong(s)];
     final playback = ref.watch(audioControllerProvider);
     final currentTrackId = playback.currentTrack?.id;
     final isEmpty = sections.every((s) => s.songs.isEmpty);
@@ -241,7 +246,7 @@ class _PlaylistPageState extends ConsumerState<PlaylistPage> {
               },
               child: KeyedSubtree(
                 key: ValueKey('$_category|$_selectedTagId|${_searchCtrl.text}'),
-                child: isEmpty ? _buildEmpty(strings, query) : _buildList(sections, currentTrackId),
+                child: isEmpty ? _buildEmpty(strings, query) : _buildList(sections, currentTrackId, visibleTracks),
               ),
             ),
           ),
@@ -290,7 +295,8 @@ class _PlaylistPageState extends ConsumerState<PlaylistPage> {
     );
   }
 
-  Widget _buildList(List<PlaylistSection> sections, String? currentTrackId) {
+  Widget _buildList(
+      List<PlaylistSection> sections, String? currentTrackId, List<Track> tracks) {
     final rows = <Widget>[];
     for (final section in sections) {
       if (section.title.isNotEmpty) {
@@ -301,7 +307,7 @@ class _PlaylistPageState extends ConsumerState<PlaylistPage> {
           SongTile(
             song: song,
             isPlaying: currentTrackId != null && currentTrackId == song.id.toString(),
-            onTap: () => _play(song),
+            onTap: () => _play(song, tracks),
             onMore: _selecting
                 ? null
                 : (anchor) => _openSongMenu(song, anchor),

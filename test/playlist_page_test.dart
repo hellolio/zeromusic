@@ -119,7 +119,7 @@ void main() {
     expect(find.byType(SongTile), findsNothing);
   });
 
-  testWidgets('点按即播：替换播放队列并显示在迷你条', (tester) async {
+  testWidgets('点按即播：按当前筛选视图整列入队并显示在迷你条', (tester) async {
     await pumpPlaylist(tester);
 
     await tester.tap(tileOf('夜空中最亮的星'));
@@ -131,7 +131,13 @@ void main() {
     final state = container.read(audioControllerProvider);
     expect(state.isPlaying, isTrue);
     expect(state.currentTrack?.title, '夜空中最亮的星');
-    expect(state.queue, hasLength(1));
+    // 队列为当前「全部」视图的整列歌曲，而非单曲。
+    expect(state.queue, hasLength(9));
+    expect(
+      state.queue.indexWhere((t) => t.id == state.currentTrack!.id),
+      state.currentIndex,
+      reason: '点名歌曲位于队列中的正确位置',
+    );
 
     // 迷你条同步显示。
     expect(find.text('夜空中最亮的星'), findsWidgets);

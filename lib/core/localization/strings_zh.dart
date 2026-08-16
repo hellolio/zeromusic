@@ -125,6 +125,33 @@ class AppStringsZh extends AppStrings {
   String get playerNoLyrics => '暂无歌词';
 
   @override
+  String get playerQueue => '播放队列';
+
+  @override
+  String get playerComingSoon => '即将支持';
+
+  @override
+  String get playerRepeatOff => '顺序播放';
+
+  @override
+  String get playerRepeatAll => '循环播放';
+
+  @override
+  String get playerRepeatOne => '单曲循环';
+
+  @override
+  String get playerShuffle => '随机播放';
+
+  @override
+  String get miniPrevious => '上一首';
+
+  @override
+  String get miniNext => '下一首';
+
+  @override
+  String get miniPlayPause => '播放/暂停';
+
+  @override
   String get importCloud => '云端导入';
 
   @override
@@ -195,6 +222,33 @@ class AppStringsZh extends AppStrings {
 
   @override
   String get settingsReduceMotion => '减弱动态效果';
+
+  @override
+  String get settingsPlayback => '播放';
+
+  @override
+  String get settingsDefaultVolume => '默认音量';
+
+  @override
+  String get settingsEqualizer => '均衡器 / 音质';
+
+  @override
+  String get settingsBackground => '背景效果';
+
+  @override
+  String get bgEffectPowerSaver => '省电';
+
+  @override
+  String get bgEffectBalanced => '均衡';
+
+  @override
+  String get bgEffectVivid => '绚彩';
+
+  @override
+  String get settingsVersion => '版本';
+
+  @override
+  String get settingsOpenSourceLicenses => '开源许可';
 
   @override
   String get settingsAbout => '关于';

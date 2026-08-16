@@ -51,6 +51,17 @@ abstract class AppStrings {
   String get playerUpNext;
   String get playerLyrics;
   String get playerNoLyrics;
+  String get playerQueue;
+  String get playerComingSoon;
+  String get playerRepeatOff;
+  String get playerRepeatAll;
+  String get playerRepeatOne;
+  String get playerShuffle;
+
+  // ---- 迷你播放条 ----
+  String get miniPrevious;
+  String get miniNext;
+  String get miniPlayPause;
 
   // ---- 导入页 ----
   String get importCloud;
@@ -79,6 +90,15 @@ abstract class AppStrings {
   String get settingsThemeSystem;
   String get settingsLanguage;
   String get settingsReduceMotion;
+  String get settingsPlayback;
+  String get settingsDefaultVolume;
+  String get settingsEqualizer;
+  String get settingsBackground;
+  String get bgEffectPowerSaver;
+  String get bgEffectBalanced;
+  String get bgEffectVivid;
+  String get settingsVersion;
+  String get settingsOpenSourceLicenses;
   String get settingsAbout;
 
   // ---- 视频 ----

@@ -125,6 +125,33 @@ class AppStringsEn extends AppStrings {
   String get playerNoLyrics => 'No lyrics available';
 
   @override
+  String get playerQueue => 'Playback Queue';
+
+  @override
+  String get playerComingSoon => 'Coming soon';
+
+  @override
+  String get playerRepeatOff => 'Sequential';
+
+  @override
+  String get playerRepeatAll => 'Repeat All';
+
+  @override
+  String get playerRepeatOne => 'Repeat One';
+
+  @override
+  String get playerShuffle => 'Shuffle';
+
+  @override
+  String get miniPrevious => 'Previous';
+
+  @override
+  String get miniNext => 'Next';
+
+  @override
+  String get miniPlayPause => 'Play / Pause';
+
+  @override
   String get importCloud => 'Cloud';
 
   @override
@@ -195,6 +222,33 @@ class AppStringsEn extends AppStrings {
 
   @override
   String get settingsReduceMotion => 'Reduce Motion';
+
+  @override
+  String get settingsPlayback => 'Playback';
+
+  @override
+  String get settingsDefaultVolume => 'Default Volume';
+
+  @override
+  String get settingsEqualizer => 'Equalizer';
+
+  @override
+  String get settingsBackground => 'Background Effect';
+
+  @override
+  String get bgEffectPowerSaver => 'Power Saving';
+
+  @override
+  String get bgEffectBalanced => 'Balanced';
+
+  @override
+  String get bgEffectVivid => 'Vivid';
+
+  @override
+  String get settingsVersion => 'Version';
+
+  @override
+  String get settingsOpenSourceLicenses => 'Open Source Licenses';
 
   @override
   String get settingsAbout => 'About';

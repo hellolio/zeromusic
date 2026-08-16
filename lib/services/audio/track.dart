@@ -12,6 +12,7 @@ class Track {
     this.album,
     this.duration,
     this.filePath,
+    this.coverPath,
   });
 
   /// 从数据库歌曲记录构建队列曲目。
@@ -23,6 +24,7 @@ class Track {
       album: song.album,
       duration: Duration(milliseconds: song.durationMs),
       filePath: song.filePath,
+      coverPath: song.coverPath,
     );
   }
 
@@ -32,6 +34,7 @@ class Track {
   final String? album;
   final Duration? duration;
   final String? filePath;
+  final String? coverPath;
 
   String get subtitle => artist ?? '';
 }

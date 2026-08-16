@@ -10,6 +10,7 @@ import 'package:zeromusic/ui/pages/player/player_page.dart';
 import 'package:zeromusic/ui/pages/playlist/playlist_page.dart';
 import 'package:zeromusic/ui/pages/settings/settings_page.dart';
 import 'package:zeromusic/ui/scaffold/adaptive_scaffold.dart';
+import 'package:zeromusic/ui/scaffold/app_side_bar.dart';
 
 import 'helpers.dart';
 import 'support/fake_data_layer.dart';
@@ -140,17 +141,46 @@ void main() {
     expect(find.byType(ImportPage), findsOneWidget);
   });
 
-  testWidgets('桌面布局：宽屏显示 NavigationRail，播放页时迷你条隐藏', (tester) async {
+  testWidgets('桌面布局：AppSideBar 横向导航，播放页时迷你条隐藏', (tester) async {
     tester.view.physicalSize = const Size(1400, 900);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
 
     await pumpApp(tester, overrides: _trackedOverride);
 
-    expect(find.byType(NavigationRail), findsOneWidget);
+    expect(find.byType(AppSideBar), findsOneWidget);
     expect(find.byType(NavigationBar), findsNothing);
     expect(find.byType(PlaylistPage), findsOneWidget);
     expect(find.text('测试歌曲'), findsOneWidget);
+
+    // 侧栏固定宽度，足以容纳横向图标 + 文字。
+    expect(tester.getSize(find.byType(AppSideBar)).width, AppSideBar.width);
+
+    // 图标在左、文字在右（横向并列且靠左）。
+    final playlistIconX = tester
+        .getCenter(
+          find.descendant(
+            of: find.byKey(const ValueKey('sidebar-playlist')),
+            matching: find.byType(Icon),
+          ),
+        )
+        .dx;
+    final playlistLabelX = tester
+        .getCenter(
+          find.descendant(
+            of: find.byKey(const ValueKey('sidebar-playlist')),
+            matching: find.byType(Text),
+          ),
+        )
+        .dx;
+    expect(playlistIconX, lessThan(playlistLabelX));
+
+    // 设置项位于侧栏最底部（与其他项拉开距离）。
+    final settingsY =
+        tester.getTopLeft(find.byKey(const ValueKey('sidebar-settings'))).dy;
+    final playerY =
+        tester.getTopLeft(find.byKey(const ValueKey('sidebar-player'))).dy;
+    expect(settingsY, greaterThan(playerY));
 
     // 切到设置页，迷你条仍在。
     await tester.tap(find.byIcon(Icons.settings_outlined));
@@ -158,7 +188,7 @@ void main() {
     expect(find.byType(SettingsPage), findsOneWidget);
     expect(find.text('测试歌曲'), findsOneWidget);
 
-    // 切到播放页（索引 3），迷你条隐藏。
+    // 切到播放页（索引 2），迷你条隐藏。
     await tester.tap(find.byIcon(Icons.play_circle_outline));
     await tester.pumpAndSettle();
     expect(find.byType(PlayerPage), findsOneWidget);

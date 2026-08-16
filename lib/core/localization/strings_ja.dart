@@ -125,6 +125,33 @@ class AppStringsJa extends AppStrings {
   String get playerNoLyrics => '歌詞はありません';
 
   @override
+  String get playerQueue => '再生キュー';
+
+  @override
+  String get playerComingSoon => '近日対応';
+
+  @override
+  String get playerRepeatOff => '順番再生';
+
+  @override
+  String get playerRepeatAll => 'ループ再生';
+
+  @override
+  String get playerRepeatOne => '1曲リピート';
+
+  @override
+  String get playerShuffle => 'シャッフル';
+
+  @override
+  String get miniPrevious => '前の曲';
+
+  @override
+  String get miniNext => '次の曲';
+
+  @override
+  String get miniPlayPause => '再生 / 一時停止';
+
+  @override
   String get importCloud => 'クラウド';
 
   @override
@@ -195,6 +222,33 @@ class AppStringsJa extends AppStrings {
 
   @override
   String get settingsReduceMotion => '視差効果を減らす';
+
+  @override
+  String get settingsPlayback => '再生';
+
+  @override
+  String get settingsDefaultVolume => '既定音量';
+
+  @override
+  String get settingsEqualizer => 'イコライザー';
+
+  @override
+  String get settingsBackground => '背景効果';
+
+  @override
+  String get bgEffectPowerSaver => '省電力';
+
+  @override
+  String get bgEffectBalanced => 'バランス';
+
+  @override
+  String get bgEffectVivid => '鮮やか';
+
+  @override
+  String get settingsVersion => 'バージョン';
+
+  @override
+  String get settingsOpenSourceLicenses => 'オープンソースライセンス';
 
   @override
   String get settingsAbout => 'このアプリについて';

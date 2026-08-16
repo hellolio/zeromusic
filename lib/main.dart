@@ -17,18 +17,31 @@ class MyApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final prefs = ref.watch(preferencesProvider);
+    // 偏好异步载入，首帧用默认值（跟随系统 / 中文），载入后即时生效。
+    final prefs =
+        ref.watch(preferencesProvider).value ?? const AppPreferences();
     final appStrings = AppLanguage.fromLocale(prefs.locale).strings;
-    return MaterialApp(
-      title: appStrings.appName,
-      debugShowCheckedModeBanner: false,
-      theme: AppTheme.light(),
-      darkTheme: AppTheme.dark(),
-      themeMode: prefs.themeMode,
-      locale: prefs.locale,
-      supportedLocales: AppLanguage.values.map((l) => l.locale),
-      localizationsDelegates: appLocalizationsDelegates,
-      home: const AdaptiveScaffold(),
+
+    // 合并环境已有的 disableAnimations（系统减弱动态效果 / 测试包装层）
+    // 与偏好开关，保证全应用动画统一降级。
+    final existing = MediaQuery.maybeOf(context);
+    final base = existing ?? MediaQueryData.fromView(View.of(context));
+    final reduced =
+        (existing?.disableAnimations ?? false) || prefs.reduceMotion;
+
+    return MediaQuery(
+      data: base.copyWith(disableAnimations: reduced),
+      child: MaterialApp(
+        title: appStrings.appName,
+        debugShowCheckedModeBanner: false,
+        theme: AppTheme.light(),
+        darkTheme: AppTheme.dark(),
+        themeMode: prefs.themeMode,
+        locale: prefs.locale,
+        supportedLocales: AppLanguage.values.map((l) => l.locale),
+        localizationsDelegates: appLocalizationsDelegates,
+        home: const AdaptiveScaffold(),
+      ),
     );
   }
 }

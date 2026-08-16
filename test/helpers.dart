@@ -6,8 +6,13 @@ import 'package:riverpod/misc.dart' show Override;
 import 'package:zeromusic/data/app_providers.dart';
 import 'package:zeromusic/data/database/app_database.dart';
 import 'package:zeromusic/main.dart';
+import 'package:zeromusic/services/audio/audio_engine.dart';
+import 'package:zeromusic/services/audio/audio_engine_provider.dart';
+import 'package:zeromusic/services/preferences/preferences_controller.dart';
 
+import 'support/fake_audio_engine.dart';
 import 'support/fake_data_layer.dart';
+import 'support/in_memory_preferences_store.dart';
 
 /// 创建空的内存测试库。
 Future<AppDatabase> createTestDb() async {
@@ -16,11 +21,23 @@ Future<AppDatabase> createTestDb() async {
   return db;
 }
 
-/// 包装整个应用。默认开启减弱动效，避免均衡动画在测试中无限循环。
+/// 包装整个应用。默认注入内存假播放引擎与内存偏好存储（同策略：不触达真实平台）。
+/// 默认开启减弱动效，避免均衡动画在测试中无限循环。
 /// [overrides] 注入数据库/音频等 provider。
-Widget wrapApp({List<Override> overrides = const []}) {
+/// 需要自定义播放引擎时使用 [audioEngine] 参数，需要自定义偏好存储时使用
+/// [preferencesStore] 参数，不要通过 [overrides] 注入同名 provider。
+Widget wrapApp({
+  List<Override> overrides = const [],
+  AudioEngine? audioEngine,
+  PreferencesStore? preferencesStore,
+}) {
   return ProviderScope(
-    overrides: overrides,
+    overrides: [
+      audioEngineProvider.overrideWithValue(audioEngine ?? FakeAudioEngine()),
+      preferencesStoreProvider
+          .overrideWithValue(preferencesStore ?? InMemoryPreferencesStore()),
+      ...overrides,
+    ],
     child: const _NoAnimations(child: MyApp()),
   );
 }
