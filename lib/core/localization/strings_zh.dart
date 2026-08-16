@@ -1,0 +1,204 @@
+import 'app_strings.dart';
+
+/// 中文。
+class AppStringsZh extends AppStrings {
+  const AppStringsZh();
+
+  @override
+  String get appName => '本地音乐播放器';
+
+  @override
+  String get navPlaylist => '播放列表';
+
+  @override
+  String get navImport => '导入';
+
+  @override
+  String get navSettings => '设置';
+
+  @override
+  String get navPlayer => '播放';
+
+  @override
+  String get cancel => '取消';
+
+  @override
+  String get confirm => '确认';
+
+  @override
+  String get delete => '删除';
+
+  @override
+  String get edit => '编辑';
+
+  @override
+  String get save => '保存';
+
+  @override
+  String get empty => '暂无内容';
+
+  @override
+  String get tabAll => '全部';
+
+  @override
+  String get tabAlbums => '专辑';
+
+  @override
+  String get tabArtists => '艺人';
+
+  @override
+  String get tabFavorites => '收藏';
+
+  @override
+  String get tabRecent => '最近播放';
+
+  @override
+  String get tabTags => '标签';
+
+  @override
+  String get libraryTitle => '媒体资料库';
+
+  @override
+  String get search => '搜索';
+
+  @override
+  String get favorite => '加入收藏';
+
+  @override
+  String get unfavorite => '取消收藏';
+
+  @override
+  String get tagSong => '打标签';
+
+  @override
+  String get newTag => '新建标签';
+
+  @override
+  String get manageTags => '管理标签';
+
+  @override
+  String get addToQueue => '加入播放队列';
+
+  @override
+  String get batchEdit => '批量编辑';
+
+  @override
+  String get selectAll => '全选';
+
+  @override
+  String get deselectAll => '取消全选';
+
+  @override
+  String get selectedCount => '已选';
+
+  @override
+  String get batchEditHint => '留空表示不修改所有选中歌曲';
+
+  @override
+  String get songTitle => '歌曲名称';
+
+  @override
+  String get songArtist => '歌手';
+
+  @override
+  String get songAlbum => '专辑';
+
+  @override
+  String get songGenre => '流派';
+
+  @override
+  String get deleteConfirmTitle => '删除歌曲';
+
+  @override
+  String get deleteConfirmMessage => '删除后将从媒体库移除，此操作不可撤销。';
+
+  @override
+  String get noResult => '没有匹配的歌曲';
+
+  @override
+  String get playerUpNext => '播放队列';
+
+  @override
+  String get playerLyrics => '歌词';
+
+  @override
+  String get playerNoLyrics => '暂无歌词';
+
+  @override
+  String get importCloud => '云端导入';
+
+  @override
+  String get importBluetooth => '蓝牙导入';
+
+  @override
+  String get importWifi => 'WiFi 导入';
+
+  @override
+  String get importMac => 'Mac 电脑';
+
+  @override
+  String get importWindows => 'Windows 电脑';
+
+  @override
+  String get importLocalFile => '本地文件';
+
+  @override
+  String get importTitle => '导入音乐';
+
+  @override
+  String get importSourcesHeader => '导入来源';
+
+  @override
+  String get importTasksHeader => '导入任务';
+
+  @override
+  String get importEmpty => '选择下方来源开始导入';
+
+  @override
+  String get importQueued => '排队中';
+
+  @override
+  String get importImporting => '导入中';
+
+  @override
+  String get importDone => '已完成';
+
+  @override
+  String get importFailed => '导入失败';
+
+  @override
+  String get importRetry => '重试';
+
+  @override
+  String get importAllDone => '全部导入完成';
+
+  @override
+  String get importComingSoon => '即将支持';
+
+  @override
+  String get settingsAppearance => '外观';
+
+  @override
+  String get settingsTheme => '主题';
+
+  @override
+  String get settingsThemeLight => '浅色';
+
+  @override
+  String get settingsThemeDark => '深色';
+
+  @override
+  String get settingsThemeSystem => '跟随系统';
+
+  @override
+  String get settingsLanguage => '语言';
+
+  @override
+  String get settingsReduceMotion => '减弱动态效果';
+
+  @override
+  String get settingsAbout => '关于';
+
+  @override
+  String get videoPlayer => '视频播放';
+}
