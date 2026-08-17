@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:zeromusic/services/audio/audio_controller.dart';
 import 'package:zeromusic/ui/components/song_tile.dart';
 import 'package:zeromusic/ui/pages/playlist/playlist_page.dart';
+import 'package:zeromusic/ui/scaffold/app_side_bar.dart';
 
 import 'helpers.dart';
 import 'support/fake_data_layer.dart';
@@ -48,18 +49,6 @@ void main() {
     expect(find.textContaining('逃跑计划'), findsWidgets);
   });
 
-  testWidgets('专辑：按专辑分组', (tester) async {
-    await pumpPlaylist(tester);
-
-    await tester.tap(find.text('Albums'));
-    await tester.pumpAndSettle();
-
-    expect(find.text('叶惠美'), findsOneWidget);
-    expect(find.text('周杰伦的床边故事'), findsOneWidget);
-    expect(tileOf('晴天'), findsOneWidget);
-    expect(tileOf('告白气球'), findsOneWidget);
-  });
-
   testWidgets('艺人：按艺人分组', (tester) async {
     await pumpPlaylist(tester);
 
@@ -71,7 +60,7 @@ void main() {
     expect(tileOf('告白气球'), findsOneWidget);
   });
 
-  testWidgets('收藏：仅显示收藏歌曲', (tester) async {
+  testWidgets('喜欢：仅显示喜欢歌曲', (tester) async {
     await pumpPlaylist(tester);
 
     await tester.tap(find.text('Favorites'));
@@ -143,7 +132,7 @@ void main() {
     expect(find.text('夜空中最亮的星'), findsWidgets);
   });
 
-  testWidgets('收藏切换：右键菜单红心动画并入库', (tester) async {
+  testWidgets('喜欢切换：右键菜单红心动画并入库', (tester) async {
     await pumpPlaylist(tester);
 
     await tester.tap(moreOf('平凡之路'));
@@ -160,7 +149,7 @@ void main() {
       findsOneWidget,
     );
 
-    // 收藏分类中能看到。
+    // 喜欢分类中能看到。
     await tester.tap(find.text('Favorites'));
     await tester.pumpAndSettle();
     expect(tileOf('平凡之路'), findsOneWidget);
@@ -201,12 +190,7 @@ void main() {
     await tester.tap(find.text('Edit'));
     await tester.pumpAndSettle();
 
-    await tester.enterText(
-        find.descendant(
-                of: find.byType(Dialog),
-                matching: find.byType(TextField))
-            .first,
-        '成都 (Live)');
+    await tester.enterText(find.byType(TextField).first, '成都 (Live)');
     await tester.tap(find.text('Save'));
     await tester.pumpAndSettle();
 
@@ -234,16 +218,20 @@ void main() {
   testWidgets('新建标签：创建后可在筛选面板出现', (tester) async {
     await pumpPlaylist(tester);
 
-    await tester.tap(find.byIcon(CupertinoIcons.add).first);
-    await tester.pumpAndSettle();
-    await tester.enterText(find.byType(TextField).last, '运动');
-    await tester.tap(find.text('Save'));
-    await tester.pumpAndSettle();
-
+    // 打开标签筛选面板。
     await tester.ensureVisible(find.text('Tags ▾'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Tags ▾'));
     await tester.pumpAndSettle();
+
+    // 面板头部点「新建标签」打开创建弹窗。
+    await tester.tap(find.text('New Tag'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), '运动');
+    await tester.tap(find.text('Save'));
+    await tester.pumpAndSettle();
+
+    // 新建成功后标签出现在筛选面板列表中。
     expect(find.text('运动'), findsOneWidget);
   });
 
@@ -282,7 +270,7 @@ void main() {
     expect(find.byIcon(CupertinoIcons.square_list), findsOneWidget);
   });
 
-  testWidgets('批量编辑：多选两首后批量收藏再取消', (tester) async {
+  testWidgets('批量编辑：多选两首后批量喜欢再取消', (tester) async {
     final layer = await pumpPlaylistForBatch(tester);
 
     await tester.tap(find.byIcon(CupertinoIcons.square_list));
@@ -297,7 +285,7 @@ void main() {
     final chengduId =
         layer.mediaRepository.songs.firstWhere((s) => s.title == '成都').id;
 
-    // 批量加入收藏。
+    // 批量加入喜欢。
     await tester.tap(find.byIcon(CupertinoIcons.ellipsis));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Add to Favorites'));
@@ -318,7 +306,7 @@ void main() {
       findsOneWidget,
     );
 
-    // 已全部收藏 → 菜单显示取消收藏。
+    // 已全部喜欢 → 菜单显示取消喜欢。
     await tester.tap(find.byIcon(CupertinoIcons.ellipsis));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Remove from Favorites'));
@@ -334,7 +322,7 @@ void main() {
     );
   });
 
-  testWidgets('批量编辑：全选后批量加入收藏', (tester) async {
+  testWidgets('批量编辑：全选后批量加入喜欢', (tester) async {
     final layer = await pumpPlaylistForBatch(tester);
 
     await tester.tap(find.byIcon(CupertinoIcons.square_list));
@@ -404,13 +392,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // 字段留空表示不修改；仅填写标题。
-    await tester.enterText(
-      find
-          .descendant(
-              of: find.byType(Dialog), matching: find.byType(TextField))
-          .first,
-      '批量标题',
-    );
+    await tester.enterText(find.byType(TextField).first, '批量标题');
     await tester.tap(find.text('Save'));
     await tester.pumpAndSettle();
 
@@ -465,5 +447,43 @@ void main() {
 
     expect(find.text('Add to Favorites'), findsOneWidget);
     expect(find.text('Add to Queue'), findsOneWidget);
+  });
+
+  testWidgets('桌面端：三点按钮菜单在内容区居中弹出（忽略左侧栏）', (tester) async {
+    await pumpPlaylist(tester);
+    // pumpPlaylist 已设为移动端小窗，此处再切到桌面宽屏并刷新布局。
+    tester.view.physicalSize = const Size(1400, 1800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+    await tester.pumpAndSettle();
+
+    final windowW = tester.view.physicalSize.width;
+    final contentCenterX = AppSideBar.width + (windowW - AppSideBar.width) / 2;
+
+    await tester.tap(moreOf('平凡之路'));
+    await tester.pumpAndSettle();
+
+    final menuItemX = tester.getCenter(find.text('Add to Favorites'));
+
+    // 弹框应在内容区（不含左侧栏）水平居中，而非贴近三点按钮/整窗中心。
+    final fromContentCenter = (menuItemX.dx - contentCenterX).abs();
+    final moreX = tester.getCenter(moreOf('平凡之路')).dx;
+    final fromMore = (menuItemX.dx - moreX).abs();
+    expect(fromContentCenter, lessThan(100));
+    expect(fromContentCenter, lessThan(fromMore));
+  });
+
+  testWidgets('点击弹窗外部区域可关闭菜单', (tester) async {
+    await pumpPlaylist(tester);
+
+    await tester.tap(moreOf('平凡之路'));
+    await tester.pumpAndSettle();
+    expect(find.text('Add to Favorites'), findsOneWidget);
+
+    // 弹窗外的角落点击 barrier → 关闭。
+    await tester.tapAt(const Offset(60, 60));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Add to Favorites'), findsNothing);
   });
 }

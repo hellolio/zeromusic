@@ -131,7 +131,7 @@ void main() {
     );
   });
 
-  testWidgets('TC-04 桌面端主题选择用锚点菜单', (tester) async {
+  testWidgets('TC-04 桌面端主题选择用居中弹框', (tester) async {
     await pumpSettings(tester, size: const Size(1400, 900));
 
     await tester.tap(find.byKey(const ValueKey('settings-theme')));

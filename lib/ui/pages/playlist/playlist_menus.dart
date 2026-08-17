@@ -8,18 +8,16 @@ import '../../../data/app_providers.dart';
 import '../../../data/database/app_database.dart';
 import '../../../services/audio/audio_controller.dart';
 import '../../../services/audio/track.dart';
+import '../../components/center_popup.dart';
 import '../../components/glass_overlay.dart';
 
-/// 歌曲上下文菜单（⋯ / 长按 / 鼠标右键）。
-/// 移动端：BottomSheet（毛玻璃）；桌面端：showMenu。
+/// 歌曲上下文菜单（⋯ / 长按 / 鼠标右键）：统一窗口居中的毛玻璃弹框。
 Future<void> showSongMenu(
   BuildContext context,
   WidgetRef ref, {
   required Song song,
-  required Offset anchor,
 }) async {
   final strings = context.strings;
-  final isDesktop = MediaQuery.sizeOf(context).width >= 840;
 
   void favorite() =>
       ref.read(mediaRepositoryProvider).toggleFavorite(song.id, !song.isFavorite);
@@ -28,77 +26,28 @@ Future<void> showSongMenu(
   void edit() => showEditSongDialog(context, ref, song);
   void remove() => showDeleteConfirm(context, ref, song);
 
-  if (isDesktop) {
-    final result = await showMenu<String>(
-      context: context,
-      position: RelativeRect.fromLTRB(anchor.dx, anchor.dy, anchor.dx, anchor.dy),
-      items: [
-        PopupMenuItem(
-          value: 'fav',
-          child: _menuLabel(
-            song.isFavorite ? CupertinoIcons.heart_fill : CupertinoIcons.heart,
-            song.isFavorite ? strings.unfavorite : strings.favorite,
-            color: song.isFavorite ? AppTokens.favorite : null,
-          ),
-        ),
-        PopupMenuItem(value: 'tag', child: _menuLabel(CupertinoIcons.tag, strings.tagSong)),
-        PopupMenuItem(value: 'queue', child: _menuLabel(CupertinoIcons.add, strings.addToQueue)),
-        PopupMenuItem(value: 'edit', child: _menuLabel(CupertinoIcons.pencil, strings.edit)),
-        const PopupMenuItem(value: 'delete', child: Divider(height: 1)),
-        PopupMenuItem(
-          value: 'delete',
-          child: _menuLabel(CupertinoIcons.trash, strings.delete, color: AppTokens.favorite),
-        ),
-      ],
-    );
-    switch (result) {
-      case 'fav':
-        favorite();
-      case 'tag':
-        tagSong();
-      case 'queue':
-        enqueue();
-      case 'edit':
-        edit();
-      case 'delete':
-        remove();
-    }
-  } else {
-    await showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (sheetCtx) => GlassOverlay(
-        radius: AppTokens.radiusL,
-        child: SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _sheetTile(sheetCtx, song.isFavorite ? CupertinoIcons.heart_fill : CupertinoIcons.heart,
-                  song.isFavorite ? strings.unfavorite : strings.favorite,
-                  favorite,
-                  color: song.isFavorite ? AppTokens.favorite : null),
-              _sheetTile(sheetCtx, CupertinoIcons.tag, strings.tagSong, tagSong),
-              _sheetTile(sheetCtx, CupertinoIcons.add, strings.addToQueue, enqueue),
-              _sheetTile(sheetCtx, CupertinoIcons.pencil, strings.edit, edit),
-              _sheetTile(sheetCtx, CupertinoIcons.trash, strings.delete, remove,
-                  color: AppTokens.favorite),
-              const SizedBox(height: AppTokens.spaceS),
-            ],
-          ),
+  await showCenterPopup<void>(
+    context,
+    child: GlassOverlay(
+      radius: AppTokens.radiusL,
+      child: SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _sheetTile(context, song.isFavorite ? CupertinoIcons.heart_fill : CupertinoIcons.heart,
+                song.isFavorite ? strings.unfavorite : strings.favorite,
+                favorite,
+                color: song.isFavorite ? AppTokens.favorite : null),
+            _sheetTile(context, CupertinoIcons.tag, strings.tagSong, tagSong),
+            _sheetTile(context, CupertinoIcons.add, strings.addToQueue, enqueue),
+            _sheetTile(context, CupertinoIcons.pencil, strings.edit, edit),
+            _sheetTile(context, CupertinoIcons.trash, strings.delete, remove,
+                color: AppTokens.favorite),
+            const SizedBox(height: AppTokens.spaceS),
+          ],
         ),
       ),
-    );
-  }
-}
-
-Widget _menuLabel(IconData icon, String label, {Color? color}) {
-  return Row(
-    mainAxisSize: MainAxisSize.min,
-    children: [
-      Icon(icon, size: 18, color: color),
-      const SizedBox(width: AppTokens.spaceS),
-      Text(label),
-    ],
+    ),
   );
 }
 
@@ -119,17 +68,15 @@ Widget _sheetTile(
   );
 }
 
-/// 批量编辑菜单（移动端底部弹层 / 桌面端锚点菜单）。
-/// 操作与单曲菜单一致：收藏/取消收藏、打标签、加入播放队列、编辑、删除。
+/// 批量编辑菜单：统一窗口居中的毛玻璃弹框。
+/// 操作与单曲菜单一致：喜欢/取消喜欢、打标签、加入播放队列、编辑、删除。
 Future<void> showBatchSongMenu(
   BuildContext context,
   WidgetRef ref, {
   required List<Song> songs,
-  Offset anchor = Offset.zero,
 }) async {
   if (songs.isEmpty) return;
   final strings = context.strings;
-  final isDesktop = MediaQuery.sizeOf(context).width >= 840;
   final ids = [for (final s in songs) s.id];
   final allFavorite = songs.every((s) => s.isFavorite);
 
@@ -147,67 +94,29 @@ Future<void> showBatchSongMenu(
   void edit() => showBatchEditDialog(context, ref, songs: songs);
   void remove() => showBatchDeleteConfirm(context, ref, songs: songs);
 
-  if (isDesktop) {
-    final result = await showMenu<String>(
-      context: context,
-      position: RelativeRect.fromLTRB(anchor.dx, anchor.dy, anchor.dx, anchor.dy),
-      items: [
-        PopupMenuItem(
-          value: 'fav',
-          child: _menuLabel(
-            allFavorite ? CupertinoIcons.heart_fill : CupertinoIcons.heart,
-            allFavorite ? strings.unfavorite : strings.favorite,
-            color: allFavorite ? AppTokens.favorite : null,
-          ),
-        ),
-        PopupMenuItem(value: 'tag', child: _menuLabel(CupertinoIcons.tag, strings.tagSong)),
-        PopupMenuItem(value: 'queue', child: _menuLabel(CupertinoIcons.add, strings.addToQueue)),
-        PopupMenuItem(value: 'edit', child: _menuLabel(CupertinoIcons.pencil, strings.edit)),
-        const PopupMenuItem(value: 'delete', child: Divider(height: 1)),
-        PopupMenuItem(
-          value: 'delete',
-          child: _menuLabel(CupertinoIcons.trash, strings.delete, color: AppTokens.favorite),
-        ),
-      ],
-    );
-    switch (result) {
-      case 'fav':
-        favorite();
-      case 'tag':
-        tagSongs();
-      case 'queue':
-        enqueue();
-      case 'edit':
-        edit();
-      case 'delete':
-        remove();
-    }
-  } else {
-    await showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (sheetCtx) => GlassOverlay(
-        radius: AppTokens.radiusL,
-        child: SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _sheetTile(sheetCtx, allFavorite ? CupertinoIcons.heart_fill : CupertinoIcons.heart,
-                  allFavorite ? strings.unfavorite : strings.favorite,
-                  favorite,
-                  color: allFavorite ? AppTokens.favorite : null),
-              _sheetTile(sheetCtx, CupertinoIcons.tag, strings.tagSong, tagSongs),
-              _sheetTile(sheetCtx, CupertinoIcons.pencil, strings.edit, edit),
-              _sheetTile(sheetCtx, CupertinoIcons.add, strings.addToQueue, enqueue),
-              _sheetTile(sheetCtx, CupertinoIcons.trash, strings.delete, remove,
-                  color: AppTokens.favorite),
-              const SizedBox(height: AppTokens.spaceS),
-            ],
-          ),
+  await showCenterPopup<void>(
+    context,
+    child: GlassOverlay(
+      radius: AppTokens.radiusL,
+      child: SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _sheetTile(context, allFavorite ? CupertinoIcons.heart_fill : CupertinoIcons.heart,
+                allFavorite ? strings.unfavorite : strings.favorite,
+                favorite,
+                color: allFavorite ? AppTokens.favorite : null),
+            _sheetTile(context, CupertinoIcons.tag, strings.tagSong, tagSongs),
+            _sheetTile(context, CupertinoIcons.pencil, strings.edit, edit),
+            _sheetTile(context, CupertinoIcons.add, strings.addToQueue, enqueue),
+            _sheetTile(context, CupertinoIcons.trash, strings.delete, remove,
+                color: AppTokens.favorite),
+            const SizedBox(height: AppTokens.spaceS),
+          ],
         ),
       ),
-    );
-  }
+    ),
+  );
 }
 
 /// 批量删除二次确认弹窗。
@@ -217,41 +126,38 @@ Future<void> showBatchDeleteConfirm(
   required List<Song> songs,
 }) async {
   final strings = context.strings;
-  final confirmed = await showDialog<bool>(
-    context: context,
-    builder: (dialogCtx) => Dialog(
-      backgroundColor: Colors.transparent,
-      child: GlassOverlay(
-        radius: AppTokens.radiusL,
-        padding: const EdgeInsets.all(AppTokens.spaceL),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(strings.deleteConfirmTitle,
-                style: Theme.of(dialogCtx).textTheme.titleMedium),
-            const SizedBox(height: AppTokens.spaceM),
-            Text(strings.deleteConfirmMessage,
-                style: Theme.of(dialogCtx).textTheme.bodyMedium
-                    ?.copyWith(color: Theme.of(dialogCtx).colorScheme.onSecondary)),
-            const SizedBox(height: AppTokens.spaceL),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                TextButton(
-                  onPressed: () => Navigator.of(dialogCtx).pop(false),
-                  child: Text(strings.cancel),
-                ),
-                const SizedBox(width: AppTokens.spaceS),
-                TextButton(
-                  onPressed: () => Navigator.of(dialogCtx).pop(true),
-                  child: Text(strings.delete,
-                      style: const TextStyle(color: AppTokens.favorite)),
-                ),
-              ],
-            ),
-          ],
-        ),
+  final confirmed = await showCenterPopup<bool>(
+    context,
+    child: GlassOverlay(
+      radius: AppTokens.radiusL,
+      padding: const EdgeInsets.all(AppTokens.spaceL),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(strings.deleteConfirmTitle,
+              style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: AppTokens.spaceM),
+          Text(strings.deleteConfirmMessage,
+              style: Theme.of(context).textTheme.bodyMedium
+                  ?.copyWith(color: Theme.of(context).colorScheme.onSecondary)),
+          const SizedBox(height: AppTokens.spaceL),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: Text(strings.cancel),
+              ),
+              const SizedBox(width: AppTokens.spaceS),
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                child: Text(strings.delete,
+                    style: const TextStyle(color: AppTokens.favorite)),
+              ),
+            ],
+          ),
+        ],
       ),
     ),
   );
@@ -275,54 +181,51 @@ Future<void> showBatchEditDialog(
   final albumCtrl = TextEditingController();
   final genreCtrl = TextEditingController();
 
-  await showDialog<void>(
-    context: context,
-    builder: (dialogCtx) => Dialog(
-      backgroundColor: Colors.transparent,
-      child: GlassOverlay(
-        radius: AppTokens.radiusL,
-        padding: const EdgeInsets.all(AppTokens.spaceL),
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(strings.edit, style: Theme.of(dialogCtx).textTheme.titleMedium),
-              const SizedBox(height: AppTokens.spaceXs),
-              Text(strings.batchEditHint,
-                  style: Theme.of(dialogCtx).textTheme.bodySmall
-                      ?.copyWith(color: Theme.of(dialogCtx).colorScheme.onSecondary)),
-              const SizedBox(height: AppTokens.spaceM),
-              _field(dialogCtx, strings.songTitle, titleCtrl),
-              _field(dialogCtx, strings.songArtist, artistCtrl),
-              _field(dialogCtx, strings.songAlbum, albumCtrl),
-              _field(dialogCtx, strings.songGenre, genreCtrl),
-              const SizedBox(height: AppTokens.spaceL),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  TextButton(
-                    onPressed: () => Navigator.of(dialogCtx).pop(),
-                    child: Text(strings.cancel),
-                  ),
-                  const SizedBox(width: AppTokens.spaceS),
-                  TextButton(
-                    onPressed: () {
-                      ref.read(mediaRepositoryProvider).updateSongs(
-                            ids,
-                            title: _blankToNull(titleCtrl.text),
-                            artist: _blankToNull(artistCtrl.text),
-                            album: _blankToNull(albumCtrl.text),
-                            genre: _blankToNull(genreCtrl.text),
-                          );
-                      Navigator.of(dialogCtx).pop();
-                    },
-                    child: Text(strings.save),
-                  ),
-                ],
-              ),
-            ],
-          ),
+  await showCenterPopup<void>(
+    context,
+    child: GlassOverlay(
+      radius: AppTokens.radiusL,
+      padding: const EdgeInsets.all(AppTokens.spaceL),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(strings.edit, style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: AppTokens.spaceXs),
+            Text(strings.batchEditHint,
+                style: Theme.of(context).textTheme.bodySmall
+                    ?.copyWith(color: Theme.of(context).colorScheme.onSecondary)),
+            const SizedBox(height: AppTokens.spaceM),
+            _field(context, strings.songTitle, titleCtrl),
+            _field(context, strings.songArtist, artistCtrl),
+            _field(context, strings.songAlbum, albumCtrl),
+            _field(context, strings.songGenre, genreCtrl),
+            const SizedBox(height: AppTokens.spaceL),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: Text(strings.cancel),
+                ),
+                const SizedBox(width: AppTokens.spaceS),
+                TextButton(
+                  onPressed: () {
+                    ref.read(mediaRepositoryProvider).updateSongs(
+                          ids,
+                          title: _blankToNull(titleCtrl.text),
+                          artist: _blankToNull(artistCtrl.text),
+                          album: _blankToNull(albumCtrl.text),
+                          genre: _blankToNull(genreCtrl.text),
+                        );
+                    Navigator.of(context).pop();
+                  },
+                  child: Text(strings.save),
+                ),
+              ],
+            ),
+          ],
         ),
       ),
     ),
@@ -336,41 +239,38 @@ Future<void> showDeleteConfirm(
   Song song,
 ) async {
   final strings = context.strings;
-  final confirmed = await showDialog<bool>(
-    context: context,
-    builder: (dialogCtx) => Dialog(
-      backgroundColor: Colors.transparent,
-      child: GlassOverlay(
-        radius: AppTokens.radiusL,
-        padding: const EdgeInsets.all(AppTokens.spaceL),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(strings.deleteConfirmTitle,
-                style: Theme.of(dialogCtx).textTheme.titleMedium),
-            const SizedBox(height: AppTokens.spaceM),
-            Text(strings.deleteConfirmMessage,
-                style: Theme.of(dialogCtx).textTheme.bodyMedium
-                    ?.copyWith(color: Theme.of(dialogCtx).colorScheme.onSecondary)),
-            const SizedBox(height: AppTokens.spaceL),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                TextButton(
-                  onPressed: () => Navigator.of(dialogCtx).pop(false),
-                  child: Text(strings.cancel),
-                ),
-                const SizedBox(width: AppTokens.spaceS),
-                TextButton(
-                  onPressed: () => Navigator.of(dialogCtx).pop(true),
-                  child: Text(strings.delete,
-                      style: const TextStyle(color: AppTokens.favorite)),
-                ),
-              ],
-            ),
-          ],
-        ),
+  final confirmed = await showCenterPopup<bool>(
+    context,
+    child: GlassOverlay(
+      radius: AppTokens.radiusL,
+      padding: const EdgeInsets.all(AppTokens.spaceL),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(strings.deleteConfirmTitle,
+              style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: AppTokens.spaceM),
+          Text(strings.deleteConfirmMessage,
+              style: Theme.of(context).textTheme.bodyMedium
+                  ?.copyWith(color: Theme.of(context).colorScheme.onSecondary)),
+          const SizedBox(height: AppTokens.spaceL),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: Text(strings.cancel),
+              ),
+              const SizedBox(width: AppTokens.spaceS),
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                child: Text(strings.delete,
+                    style: const TextStyle(color: AppTokens.favorite)),
+              ),
+            ],
+          ),
+        ],
       ),
     ),
   );
@@ -391,52 +291,49 @@ Future<void> showEditSongDialog(
   final albumCtrl = TextEditingController(text: song.album ?? '');
   final genreCtrl = TextEditingController(text: song.genre ?? '');
 
-  await showDialog<void>(
-    context: context,
-    builder: (dialogCtx) => Dialog(
-      backgroundColor: Colors.transparent,
-      child: GlassOverlay(
-        radius: AppTokens.radiusL,
-        padding: const EdgeInsets.all(AppTokens.spaceL),
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(strings.edit, style: Theme.of(dialogCtx).textTheme.titleMedium),
-              const SizedBox(height: AppTokens.spaceM),
-              _field(dialogCtx, strings.songTitle, titleCtrl),
-              _field(dialogCtx, strings.songArtist, artistCtrl),
-              _field(dialogCtx, strings.songAlbum, albumCtrl),
-              _field(dialogCtx, strings.songGenre, genreCtrl),
-              const SizedBox(height: AppTokens.spaceL),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  TextButton(
-                    onPressed: () => Navigator.of(dialogCtx).pop(),
-                    child: Text(strings.cancel),
-                  ),
-                  const SizedBox(width: AppTokens.spaceS),
-                  TextButton(
-                    onPressed: () {
-                      final title = titleCtrl.text.trim();
-                      if (title.isEmpty) return;
-                      ref.read(mediaRepositoryProvider).updateSong(
-                            song.id,
-                            title: title,
-                            artist: _blankToNull(artistCtrl.text),
-                            album: _blankToNull(albumCtrl.text),
-                            genre: _blankToNull(genreCtrl.text),
-                          );
-                      Navigator.of(dialogCtx).pop();
-                    },
-                    child: Text(strings.save),
-                  ),
-                ],
-              ),
-            ],
-          ),
+  await showCenterPopup<void>(
+    context,
+    child: GlassOverlay(
+      radius: AppTokens.radiusL,
+      padding: const EdgeInsets.all(AppTokens.spaceL),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(strings.edit, style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: AppTokens.spaceM),
+            _field(context, strings.songTitle, titleCtrl),
+            _field(context, strings.songArtist, artistCtrl),
+            _field(context, strings.songAlbum, albumCtrl),
+            _field(context, strings.songGenre, genreCtrl),
+            const SizedBox(height: AppTokens.spaceL),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: Text(strings.cancel),
+                ),
+                const SizedBox(width: AppTokens.spaceS),
+                TextButton(
+                  onPressed: () {
+                    final title = titleCtrl.text.trim();
+                    if (title.isEmpty) return;
+                    ref.read(mediaRepositoryProvider).updateSong(
+                          song.id,
+                          title: title,
+                          artist: _blankToNull(artistCtrl.text),
+                          album: _blankToNull(albumCtrl.text),
+                          genre: _blankToNull(genreCtrl.text),
+                        );
+                    Navigator.of(context).pop();
+                  },
+                  child: Text(strings.save),
+                ),
+              ],
+            ),
+          ],
         ),
       ),
     ),
@@ -460,13 +357,12 @@ Widget _field(BuildContext context, String label, TextEditingController ctrl) {
   );
 }
 
-/// 打标签选择面板（底部弹层）：显示全部标签，点击切换打标状态。
+/// 打标签选择面板（居中弹窗）：显示全部标签，点击切换打标状态。
 /// [songIds] 支持单曲（1 个 id）与批量（多个 id，勾选状态取交集）。
 Future<void> showTagPicker(BuildContext context, WidgetRef ref, Song song) async {
-  await showModalBottomSheet<void>(
-    context: context,
-    backgroundColor: Colors.transparent,
-    builder: (sheetCtx) => _TagPickerSheet(songIds: [song.id]),
+  await showCenterPopup<void>(
+    context,
+    child: _TagPickerSheet(songIds: [song.id]),
   );
 }
 
@@ -476,10 +372,9 @@ Future<void> showBatchTagPicker(
   WidgetRef ref, {
   required List<int> songIds,
 }) async {
-  await showModalBottomSheet<void>(
-    context: context,
-    backgroundColor: Colors.transparent,
-    builder: (sheetCtx) => _TagPickerSheet(songIds: songIds),
+  await showCenterPopup<void>(
+    context,
+    child: _TagPickerSheet(songIds: songIds),
   );
 }
 
@@ -521,12 +416,12 @@ class _TagPickerSheet extends ConsumerWidget {
                   Text(strings.tagSong,
                       style: Theme.of(context).textTheme.titleMedium),
                   const Spacer(),
-                  TextButton.icon(
+                  _tagActionButton(
+                    icon: CupertinoIcons.add,
+                    label: strings.newTag,
                     onPressed: () async {
                       await showCreateTagDialog(context, ref);
                     },
-                    icon: const Icon(CupertinoIcons.add, size: 16),
-                    label: Text(strings.newTag),
                   ),
                 ],
               ),
@@ -583,10 +478,9 @@ Future<int?> showTagFilterSheet(
   WidgetRef ref, {
   int? selectedTagId,
 }) {
-  return showModalBottomSheet<int>(
-    context: context,
-    backgroundColor: Colors.transparent,
-    builder: (sheetCtx) => _TagFilterSheet(selectedTagId: selectedTagId),
+  return showCenterPopup<int>(
+    context,
+    child: _TagFilterSheet(selectedTagId: selectedTagId),
   );
 }
 
@@ -614,20 +508,20 @@ class _TagFilterSheet extends ConsumerWidget {
                   Text(strings.tabTags,
                       style: Theme.of(context).textTheme.titleMedium),
                   const Spacer(),
-                  TextButton.icon(
+                  _tagActionButton(
+                    icon: CupertinoIcons.gear_alt,
+                    label: strings.manageTags,
                     onPressed: () async {
                       await showManageTagsDialog(context, ref);
                     },
-                    icon: const Icon(CupertinoIcons.gear_alt, size: 16),
-                    label: Text(strings.manageTags),
                   ),
-                  const SizedBox(width: AppTokens.spaceS),
-                  TextButton.icon(
+                  const SizedBox(width: AppTokens.spaceXs),
+                  _tagActionButton(
+                    icon: CupertinoIcons.add,
+                    label: strings.newTag,
                     onPressed: () async {
                       await showCreateTagDialog(context, ref);
                     },
-                    icon: const Icon(CupertinoIcons.add, size: 16),
-                    label: Text(strings.newTag),
                   ),
                 ],
               ),
@@ -694,6 +588,25 @@ class _TagFilterSheet extends ConsumerWidget {
   }
 }
 
+/// 弹框头部紧凑操作按钮：居中弹框宽度有限，避免长文本溢出。
+Widget _tagActionButton({
+  required IconData icon,
+  required String label,
+  required VoidCallback onPressed,
+}) {
+  return TextButton.icon(
+    onPressed: onPressed,
+    icon: Icon(icon, size: 16),
+    label: Text(label),
+    style: TextButton.styleFrom(
+      visualDensity: VisualDensity.compact,
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      minimumSize: const Size(0, 36),
+    ),
+  );
+}
+
 /// 新建标签弹窗。
 Future<void> showCreateTagDialog(
   BuildContext context,
@@ -704,69 +617,66 @@ Future<void> showCreateTagDialog(
   final colors = [0xFF2E7D32, 0xFFF57C00, 0xFF9C27B0, 0xFF0A84FF, 0xFFFF2D55];
   var pickedColor = colors.first;
 
-  await showDialog<void>(
-    context: context,
-    builder: (dialogCtx) => StatefulBuilder(
-      builder: (dialogCtx, setState) => Dialog(
-        backgroundColor: Colors.transparent,
-        child: GlassOverlay(
-          radius: AppTokens.radiusL,
-          padding: const EdgeInsets.all(AppTokens.spaceL),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(strings.newTag, style: Theme.of(dialogCtx).textTheme.titleMedium),
-              const SizedBox(height: AppTokens.spaceM),
-              TextField(
-                controller: nameCtrl,
-                autofocus: true,
-                decoration: const InputDecoration(isDense: true),
-              ),
-              const SizedBox(height: AppTokens.spaceM),
-              Row(
-                children: [
-                  for (final c in colors)
-                    GestureDetector(
-                      onTap: () => setState(() => pickedColor = c),
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 150),
-                        width: 28,
-                        height: 28,
-                        margin: const EdgeInsets.only(right: AppTokens.spaceS),
-                        decoration: BoxDecoration(
-                          color: Color(c).withValues(alpha: 0.9),
-                          shape: BoxShape.circle,
-                          border: pickedColor == c
-                              ? Border.all(color: Theme.of(dialogCtx).colorScheme.onSurface, width: 2)
-                              : null,
-                        ),
+  await showCenterPopup<void>(
+    context,
+    child: StatefulBuilder(
+      builder: (dialogCtx, setState) => GlassOverlay(
+        radius: AppTokens.radiusL,
+        padding: const EdgeInsets.all(AppTokens.spaceL),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(strings.newTag, style: Theme.of(dialogCtx).textTheme.titleMedium),
+            const SizedBox(height: AppTokens.spaceM),
+            TextField(
+              controller: nameCtrl,
+              autofocus: true,
+              decoration: const InputDecoration(isDense: true),
+            ),
+            const SizedBox(height: AppTokens.spaceM),
+            Row(
+              children: [
+                for (final c in colors)
+                  GestureDetector(
+                    onTap: () => setState(() => pickedColor = c),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 150),
+                      width: 28,
+                      height: 28,
+                      margin: const EdgeInsets.only(right: AppTokens.spaceS),
+                      decoration: BoxDecoration(
+                        color: Color(c).withValues(alpha: 0.9),
+                        shape: BoxShape.circle,
+                        border: pickedColor == c
+                            ? Border.all(color: Theme.of(dialogCtx).colorScheme.onSurface, width: 2)
+                            : null,
                       ),
                     ),
-                ],
-              ),
-              const SizedBox(height: AppTokens.spaceL),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  TextButton(
-                    onPressed: () => Navigator.of(dialogCtx).pop(),
-                    child: Text(strings.cancel),
                   ),
-                  const SizedBox(width: AppTokens.spaceS),
-                  TextButton(
-                    onPressed: () {
-                      final name = nameCtrl.text.trim();
-                      if (name.isEmpty) return;
-                      ref.read(tagRepositoryProvider).createTag(name, color: pickedColor);
-                      Navigator.of(dialogCtx).pop();
-                    },
-                    child: Text(strings.save),
-                  ),
-                ],
-              ),
-            ],
-          ),
+              ],
+            ),
+            const SizedBox(height: AppTokens.spaceL),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                TextButton(
+                  onPressed: () => Navigator.of(dialogCtx).pop(),
+                  child: Text(strings.cancel),
+                ),
+                const SizedBox(width: AppTokens.spaceS),
+                TextButton(
+                  onPressed: () {
+                    final name = nameCtrl.text.trim();
+                    if (name.isEmpty) return;
+                    ref.read(tagRepositoryProvider).createTag(name, color: pickedColor);
+                    Navigator.of(dialogCtx).pop();
+                  },
+                  child: Text(strings.save),
+                ),
+              ],
+            ),
+          ],
         ),
       ),
     ),
@@ -778,10 +688,9 @@ Future<void> showManageTagsDialog(
   BuildContext context,
   WidgetRef ref,
 ) async {
-  await showModalBottomSheet<void>(
-    context: context,
-    backgroundColor: Colors.transparent,
-    builder: (sheetCtx) => const _ManageTagsSheet(),
+  await showCenterPopup<void>(
+    context,
+    child: const _ManageTagsSheet(),
   );
 }
 
@@ -867,37 +776,34 @@ Future<String?> _promptRename(
   AppStrings strings,
 ) async {
   final controller = TextEditingController(text: initial);
-  return showDialog<String>(
-    context: context,
-    builder: (dialogCtx) => Dialog(
-      backgroundColor: Colors.transparent,
-      child: GlassOverlay(
-        radius: AppTokens.radiusL,
-        padding: const EdgeInsets.all(AppTokens.spaceL),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: controller,
-              autofocus: true,
-              decoration: const InputDecoration(isDense: true),
-            ),
-            const SizedBox(height: AppTokens.spaceM),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                TextButton(
-                  onPressed: () => Navigator.of(dialogCtx).pop(),
-                  child: Text(strings.cancel),
-                ),
-                TextButton(
-                  onPressed: () => Navigator.of(dialogCtx).pop(controller.text),
-                  child: Text(strings.save),
-                ),
-              ],
-            ),
-          ],
-        ),
+  return showCenterPopup<String>(
+    context,
+    child: GlassOverlay(
+      radius: AppTokens.radiusL,
+      padding: const EdgeInsets.all(AppTokens.spaceL),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextField(
+            controller: controller,
+            autofocus: true,
+            decoration: const InputDecoration(isDense: true),
+          ),
+          const SizedBox(height: AppTokens.spaceM),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: Text(strings.cancel),
+              ),
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(controller.text),
+                child: Text(strings.save),
+              ),
+            ],
+          ),
+        ],
       ),
     ),
   );

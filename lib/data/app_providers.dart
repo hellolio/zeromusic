@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'database/app_database.dart';
+import 'repository/lyrics_repository.dart';
 import 'repository/media_repository.dart';
 import 'repository/tag_repository.dart';
 
@@ -12,6 +13,9 @@ final mediaRepositoryProvider =
 
 final tagRepositoryProvider =
     Provider<TagRepository>((ref) => DriftTagRepository(ref.watch(databaseProvider)));
+
+final lyricsRepositoryProvider =
+    Provider<LyricsRepository>((ref) => DriftLyricsRepository(ref.watch(databaseProvider)));
 
 /// 全部歌曲流。
 final allSongsProvider = StreamProvider<List<Song>>(

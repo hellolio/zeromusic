@@ -73,7 +73,7 @@ void main() {
       expect(seen.last.map((s) => s.title), ['A', 'C', 'B']);
     });
 
-    test('toggleFavorite 切换收藏标记', () async {
+    test('toggleFavorite 切换喜欢标记', () async {
       final id = await insertSong('X');
 
       await media.toggleFavorite(id, true);
@@ -87,7 +87,7 @@ void main() {
       expect(row.isFavorite, isFalse);
     });
 
-    test('batchSetFavorite 批量设置/清除收藏', () async {
+    test('batchSetFavorite 批量设置/清除喜欢', () async {
       final a = await insertSong('A');
       final b = await insertSong('B');
 

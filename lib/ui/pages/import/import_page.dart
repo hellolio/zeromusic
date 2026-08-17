@@ -1,16 +1,14 @@
-import 'dart:async';
-
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/anim/app_curves.dart';
 import '../../../core/localization/app_strings.dart';
 import '../../../core/platform/device_type.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../services/import/import_providers.dart';
 import '../../../services/import/import_source.dart';
 import '../../../services/import/import_task.dart';
+import '../../components/top_notification.dart';
 import 'import_source_card.dart';
 import 'import_source_sheet.dart';
 import 'import_task_tile.dart';
@@ -18,8 +16,8 @@ import 'import_task_tile.dart';
 /// 导入页：来源入口卡片网格 + 进行中/失败任务列表。
 /// 「本地文件」为真实导入，「云端/蓝牙/WiFi/Mac/Win」为即将支持占位。
 ///
-/// 全部导入完成后不再显示常驻横幅/任务行，改弹一个 3 秒自动消失的通知，
-/// 完成的任务行随之从列表移除（仅保留排队/导入中/失败可重试）。
+/// 全部导入完成后不再显示常驻横幅/任务行，改弹一个位于页面顶部的
+/// 下滑式通知卡片（toast 样式），完成的任务行随之从列表移除。
 class ImportPage extends ConsumerStatefulWidget {
   const ImportPage({super.key});
 
@@ -28,25 +26,57 @@ class ImportPage extends ConsumerStatefulWidget {
 }
 
 class _ImportPageState extends ConsumerState<ImportPage> {
-  /// 全部导入完成通知显示的时长，之后自动隐藏。
-  static const noticeDuration = Duration(seconds: 3);
+  /// 当前显示中的「全部导入完成」通知（可再次触发时先移除旧的）。
+  OverlayEntry? _activeNotice;
 
-  Timer? _noticeTimer;
-  bool _noticeVisible = false;
+  /// 页面根节点 key，用于读取页面渲染盒中心，让通知相对页面而不是整个窗口居中。
+  final GlobalKey _pageKey = GlobalKey();
 
   @override
   void dispose() {
-    _noticeTimer?.cancel();
+    _activeNotice?.remove();
+    _activeNotice = null;
     super.dispose();
   }
 
   void _showAllDoneNotice() {
     if (!mounted) return;
-    _noticeTimer?.cancel();
-    setState(() => _noticeVisible = true);
-    _noticeTimer = Timer(noticeDuration, () {
-      if (mounted) setState(() => _noticeVisible = false);
-    });
+    final overlay = Overlay.of(context);
+    _activeNotice?.remove();
+    late final OverlayEntry entry;
+    entry = OverlayEntry(
+      builder: (entryCtx) {
+        // 桌面端左侧栏不计入：以页面渲染盒中心为基准，把通知横向平移过去，
+        // 移动端页面与窗口同宽，偏移为 0，行为不变。
+        final box = _pageKey.currentContext?.findRenderObject();
+        final pageCenterDx = box is RenderBox
+            ? box.localToGlobal(box.size.center(Offset.zero)).dx
+            : MediaQuery.sizeOf(entryCtx).width / 2;
+        final shiftX = pageCenterDx - MediaQuery.sizeOf(entryCtx).width / 2;
+        return SafeArea(
+          minimum: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+          child: Align(
+            alignment: Alignment.topCenter,
+            child: Transform.translate(
+              offset: Offset(shiftX, 0),
+              child: TopNotification(
+                key: const ValueKey('allDoneNotice'),
+                message: entryCtx.strings.importAllDone,
+                duration: const Duration(seconds: 3),
+                onDismissed: () {
+                  if (identical(_activeNotice, entry)) {
+                    _activeNotice = null;
+                  }
+                  entry.remove();
+                },
+              ),
+            ),
+          ),
+        );
+      },
+    );
+    _activeNotice = entry;
+    overlay.insert(entry);
   }
 
   @override
@@ -68,13 +98,13 @@ class _ImportPageState extends ConsumerState<ImportPage> {
         state.tasks.where((t) => !t.isCompleted).toList(growable: false);
 
     return Scaffold(
+      key: _pageKey,
       appBar: AppBar(title: Text(strings.importTitle)),
       body: ListView(
         padding: const EdgeInsets.only(bottom: AppTokens.spaceL),
         children: [
           _SectionLabel(strings.importSourcesHeader),
           _buildSourceGrid(context, ref, sources, device),
-          if (_noticeVisible) const _AllDoneNotice(),
           if (visibleTasks.isNotEmpty) ...[
             _SectionLabel(strings.importTasksHeader),
             for (final task in visibleTasks) _buildTaskTile(ref, task),
@@ -146,59 +176,6 @@ class _ImportPageState extends ConsumerState<ImportPage> {
                 ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-/// 「全部导入完成」瞬时通知：淡入 + 微弹，3 秒后自动消失。
-class _AllDoneNotice extends StatelessWidget {
-  const _AllDoneNotice();
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final animate = !MediaQuery.disableAnimationsOf(context);
-    return AnimatedSwitcher(
-      duration: animate ? AppCurves.standardMotion : Duration.zero,
-      switchInCurve: AppCurves.spring,
-      transitionBuilder: (child, animation) => ScaleTransition(
-        scale: animation,
-        child: FadeTransition(opacity: animation, child: child),
-      ),
-      child: Padding(
-        key: const ValueKey('allDoneNotice'),
-        padding: const EdgeInsets.fromLTRB(
-          AppTokens.spaceM,
-          0,
-          AppTokens.spaceM,
-          AppTokens.spaceS,
-        ),
-        child: Container(
-          padding: const EdgeInsets.all(AppTokens.spaceM),
-          decoration: BoxDecoration(
-            color: theme.colorScheme.primaryContainer,
-            borderRadius: BorderRadius.circular(AppTokens.radiusM),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(
-                CupertinoIcons.checkmark_alt_circle_fill,
-                size: 20,
-                color: Color(0xFF30D158),
-              ),
-              const SizedBox(width: AppTokens.spaceS),
-              Text(
-                context.strings.importAllDone,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.colorScheme.onPrimaryContainer,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
-        ),
       ),
     );
   }

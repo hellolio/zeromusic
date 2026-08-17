@@ -7,8 +7,9 @@ import '../../core/theme/app_tokens.dart';
 /// 桌面端左侧边栏（Apple Music 风格）。
 ///
 /// - 每个导航项：图标在左、标题在右，横向并列且整体靠左。
-/// - 「播放列表 / 导入 / 播放」位于上方，「设置」被 [Spacer] 推至窗口最底部。
+/// - 「播放列表 / 导入」位于上方，「设置」被 [Spacer] 推至窗口最底部。
 /// - 选中项以 primary 前景 + 浅色圆角 pill 背景高亮。
+/// - 无「播放页」导航项：播放页为全屏路由，唯一入口是迷你播放条。
 class AppSideBar extends StatelessWidget {
   const AppSideBar({
     super.key,
@@ -22,8 +23,7 @@ class AppSideBar extends StatelessWidget {
   // ---- 导航项索引（与桌面页面数组顺序一一对应） ----
   static const int playlistIndex = 0;
   static const int importIndex = 1;
-  static const int playerIndex = 2;
-  static const int settingsIndex = 3;
+  static const int settingsIndex = 2;
 
   final int selectedIndex;
   final ValueChanged<int> onSelected;
@@ -85,14 +85,6 @@ class AppSideBar extends StatelessWidget {
                   label: strings.navImport,
                   selected: selectedIndex == importIndex,
                   onTap: () => onSelected(importIndex),
-                ),
-                _SideBarItem(
-                  itemKey: const ValueKey('sidebar-player'),
-                  icon: Icons.play_circle_outline,
-                  selectedIcon: Icons.play_circle,
-                  label: strings.navPlayer,
-                  selected: selectedIndex == playerIndex,
-                  onTap: () => onSelected(playerIndex),
                 ),
                 const Spacer(),
                 Padding(

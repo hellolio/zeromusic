@@ -12,8 +12,7 @@ import 'settings_sheets.dart';
 
 /// 设置页面：主题、减弱动效、语言（中/英/日）、默认音量、关于。
 ///
-/// - 移动端 / 桌面端共用同一列表布局；选项弹层按平台自适应
-///   （移动毛玻璃底部弹层 / 桌面锚点菜单）。
+/// - 移动端 / 桌面端共用同一列表布局；选项统一窗口居中弹框弹出。
 /// - 桌面端内容限制最大宽度并居中，避免「设置项 ↔ 修改元素」相隔过远。
 /// - 全部设置由 [preferencesProvider] 驱动并即时持久化。
 class SettingsPage extends ConsumerWidget {
@@ -45,7 +44,7 @@ class SettingsPage extends ConsumerWidget {
           icon: CupertinoIcons.sun_max,
           label: strings.settingsTheme,
           value: themeLabel(strings, prefs.themeMode),
-          onTap: (anchor) => showThemePicker(context, ref, anchor),
+          onTap: () => showThemePicker(context, ref),
         ),
         _SettingsTile(
           key: const ValueKey('settings-reduce-motion'),
@@ -63,7 +62,7 @@ class SettingsPage extends ConsumerWidget {
           icon: CupertinoIcons.globe,
           label: strings.settingsLanguage,
           value: language,
-          onTap: (anchor) => showLanguagePicker(context, ref, anchor),
+          onTap: () => showLanguagePicker(context, ref),
         ),
         _SectionLabel(strings.settingsPlayback),
         const _VolumeTile(),
@@ -78,7 +77,7 @@ class SettingsPage extends ConsumerWidget {
           icon: CupertinoIcons.wand_stars,
           label: strings.settingsBackground,
           value: backgroundEffectLabel(strings, prefs.backgroundEffect),
-          onTap: (anchor) => showBackgroundPicker(context, ref, anchor),
+          onTap: () => showBackgroundPicker(context, ref),
         ),
         _SectionLabel(strings.settingsAbout),
         _SettingsTile(
@@ -91,7 +90,7 @@ class SettingsPage extends ConsumerWidget {
           key: const ValueKey('settings-licenses'),
           icon: CupertinoIcons.doc_plaintext,
           label: strings.settingsOpenSourceLicenses,
-          onTap: (_) => showLicensePage(context: context),
+          onTap: () => showLicensePage(context: context),
         ),
       ],
     );
@@ -172,7 +171,6 @@ class _VolumeTile extends ConsumerWidget {
 }
 
 /// 设置行：图标 + 标签 +（值 + 箭头）/自定义 trailing。
-/// [onTap] 接收点击行的屏幕坐标，供桌面端菜单定位。
 class _SettingsTile extends StatelessWidget {
   const _SettingsTile({
     super.key,
@@ -187,14 +185,15 @@ class _SettingsTile extends StatelessWidget {
   final String label;
   final String? value;
   final Widget? trailing;
-  final void Function(Offset anchor)? onTap;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final muted = theme.colorScheme.onSecondary;
     return ListTile(
-      contentPadding: const EdgeInsets.symmetric(horizontal: AppTokens.spaceM),
+      contentPadding:
+          const EdgeInsets.symmetric(horizontal: AppTokens.spaceM),
       leading: Icon(icon, size: 20, color: muted),
       title: Text(label, style: theme.textTheme.bodyLarge),
       trailing: trailing ??
@@ -214,15 +213,7 @@ class _SettingsTile extends StatelessWidget {
                     const Icon(CupertinoIcons.chevron_right, size: 14),
                   ],
                 )),
-      onTap: onTap == null
-          ? null
-          : () {
-              final box = context.findRenderObject() as RenderBox?;
-              final anchor = box == null
-                  ? Offset.zero
-                  : box.localToGlobal(box.size.center(Offset.zero));
-              onTap!(anchor);
-            },
+      onTap: onTap,
     );
   }
 }

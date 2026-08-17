@@ -175,29 +175,22 @@ void main() {
         .dx;
     expect(playlistIconX, lessThan(playlistLabelX));
 
-    // 设置项位于侧栏最底部（与其他项拉开距离）。
-    final settingsY =
-        tester.getTopLeft(find.byKey(const ValueKey('sidebar-settings'))).dy;
-    final playerY =
-        tester.getTopLeft(find.byKey(const ValueKey('sidebar-player'))).dy;
-    expect(settingsY, greaterThan(playerY));
-
     // 切到设置页，迷你条仍在。
     await tester.tap(find.byIcon(Icons.settings_outlined));
     await tester.pumpAndSettle();
     expect(find.byType(SettingsPage), findsOneWidget);
     expect(find.text('测试歌曲'), findsOneWidget);
 
-    // 切到播放页（索引 2），迷你条隐藏。
-    await tester.tap(find.byIcon(Icons.play_circle_outline));
+    // 点迷你条推入全屏播放页，迷你条被覆盖隐藏。
+    await tester.tap(find.byType(MiniPlayer));
     await tester.pumpAndSettle();
     expect(find.byType(PlayerPage), findsOneWidget);
-    final playerOpacity = tester.widgetList<AnimatedOpacity>(
-      find.descendant(
-        of: find.byType(MiniPlayer),
-        matching: find.byType(AnimatedOpacity),
-      ),
-    );
-    expect(playerOpacity.single.opacity, 0);
+    expect(find.byType(MiniPlayer), findsNothing);
+
+    // 点收起条返回，迷你条恢复可见。
+    await tester.tap(find.byKey(const ValueKey('player-close-bar')));
+    await tester.pumpAndSettle();
+    expect(find.byType(PlayerPage), findsNothing);
+    expect(find.byType(MiniPlayer), findsOneWidget);
   });
 }

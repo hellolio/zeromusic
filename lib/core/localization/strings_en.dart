@@ -41,9 +41,6 @@ class AppStringsEn extends AppStrings {
   String get tabAll => 'All';
 
   @override
-  String get tabAlbums => 'Albums';
-
-  @override
   String get tabArtists => 'Artists';
 
   @override
@@ -125,6 +122,21 @@ class AppStringsEn extends AppStrings {
   String get playerNoLyrics => 'No lyrics available';
 
   @override
+  String get lyricsAdd => 'Add Lyrics';
+
+  @override
+  String get lyricsEdit => 'Edit Lyrics';
+
+  @override
+  String get lyricsHint => 'Paste LRC lyrics, e.g. [00:12.00] lyric text';
+
+  @override
+  String get lyricsInvalid => 'No valid lyric lines found';
+
+  @override
+  String get lyricsBackToPlayer => 'Back to player';
+
+  @override
   String get playerQueue => 'Playback Queue';
 
   @override
@@ -141,6 +153,18 @@ class AppStringsEn extends AppStrings {
 
   @override
   String get playerShuffle => 'Shuffle';
+
+  @override
+  String get playerVolume => 'Volume';
+
+  @override
+  String get playerSleepTimer => 'Sleep Timer';
+
+  @override
+  String get playerSleepOff => 'Off';
+
+  @override
+  String sleepTimerMinutes(int minutes) => '$minutes min';
 
   @override
   String get miniPrevious => 'Previous';

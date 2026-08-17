@@ -64,4 +64,5 @@ Override databaseOverride(AppDatabase db) =>
 List<Override> fakeDataLayerOverrides(FakeDataLayer layer) => [
       mediaRepositoryProvider.overrideWithValue(layer.mediaRepository),
       tagRepositoryProvider.overrideWithValue(layer.tagRepository),
+      lyricsRepositoryProvider.overrideWithValue(layer.lyricsRepository),
     ];

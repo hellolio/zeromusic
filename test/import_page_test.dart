@@ -214,6 +214,28 @@ void main() {
     expect(layer.mediaRepository.songs, hasLength(2));
   });
 
+  testWidgets('桌面端：完成通知相对页面水平居中（不计左侧栏）', (tester) async {
+    final layer = FakeDataLayer(seed: const []);
+    await pumpImportPage(
+      tester,
+      layer: layer,
+      size: const Size(1400, 900),
+      picker: _ImmediatePicker(
+        const [PickedAudioFile(name: 'test.mp3', path: '/src/test.mp3')],
+      ),
+    );
+
+    await tester.tap(find.text('Local files'));
+    await tester.pumpAndSettle();
+
+    // 左侧栏 224px，导入页位于其右侧：页面中心 ≈ (224 + 1400)/2 = 812，
+    // 而非整个窗口中心 700。
+    final noticeCenter =
+        tester.getCenter(find.byKey(const ValueKey('allDoneNotice')));
+    expect(noticeCenter.dx, closeTo(812, 12));
+    expect((noticeCenter.dx - 812).abs(), lessThan((noticeCenter.dx - 700).abs()));
+  });
+
   testWidgets('完成通知 3 秒后自动消失', (tester) async {
     await pumpImportPage(
       tester,

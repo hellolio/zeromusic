@@ -3,7 +3,7 @@ import '../../../data/database/app_database.dart';
 /// 播放列表页面纯逻辑：分类、搜索过滤、分组。
 /// 不依赖 Flutter 组件，便于单元测试。
 
-enum PlaylistCategory { all, albums, artists, favorites, recent, tag }
+enum PlaylistCategory { all, artists, favorites, recent, tag }
 
 /// 页面当前筛选状态。
 class PlaylistQuery {
@@ -53,8 +53,6 @@ List<PlaylistSection> buildPlaylistSections(
   }
 
   switch (query.category) {
-    case PlaylistCategory.albums:
-      return _groupBy(list, (s) => s.album ?? _unknown);
     case PlaylistCategory.artists:
       return _groupBy(list, (s) => s.artist ?? _unknown);
     default:
@@ -90,7 +88,6 @@ List<Song> _applyCategory(
           .where((s) => songTags[s.id]?.contains(tagId) ?? false)
           .toList();
     case PlaylistCategory.all:
-    case PlaylistCategory.albums:
     case PlaylistCategory.artists:
       return songs.toList();
   }

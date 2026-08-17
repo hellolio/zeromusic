@@ -186,6 +186,13 @@ class AudioController extends Notifier<PlaybackState> {
     }
   }
 
+  /// 暂停当前播放（如睡眠定时归零）。已暂停时为 no-op。
+  void pause() {
+    if (!state.isPlaying) return;
+    state = state.copyWith(isPlaying: false);
+    unawaited(_engine.pause());
+  }
+
   /// 恢复播放；若引擎无可恢复源（首次/播放被清空），回退为重新加载当前曲目。
   Future<void> _resumeOrReload(AudioEngine engine) async {
     final track = state.currentTrack;

@@ -7,28 +7,55 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/anim/app_curves.dart';
 import '../../../core/localization/app_strings.dart';
+import '../../../core/platform/device_type.dart';
 import '../../../core/theme/app_tokens.dart';
+import '../../../data/app_providers.dart';
+import '../../../data/database/app_database.dart';
 import '../../../services/audio/audio_controller.dart';
+import '../../../services/audio/sleep_timer_controller.dart';
 import '../../../services/audio/track.dart';
+import '../../../services/lyrics/lyrics_controller.dart';
+import '../../../services/lyrics/lyrics_line.dart';
 import '../../../services/preferences/preferences_controller.dart';
+import '../../components/center_popup.dart';
 import '../../components/glass_overlay.dart';
+import 'lyrics_editor.dart';
+import 'lyrics_view.dart';
 import 'player_background.dart';
+import 'pull_to_dismiss.dart';
 
 /// 播放页面：全屏沉浸式，Apple Music 风格。
 ///
 /// 核心签名动效【节拍变色背景】：见 [AnimatedPaletteBackground]——
 /// 有封面时模糊大图呼吸变色，无封面时随机色板五彩渐变。
-/// 由迷你条上滑/点按（移动端）或左侧导航「播放页」（桌面端）进入。
-class PlayerPage extends ConsumerWidget {
+/// 唯一入口：点按/上滑迷你播放条（移动端与桌面端一致）。
+///
+/// 顶部小横条始终显示：点按（移动端可下拉）即收起本页返回上一页。
+/// 歌词：
+/// - 桌面端：播放页内左侧控制元素 + 右侧歌词分栏（顶部 × 关闭，动画滑入/滑出）；
+/// - 移动端：📄 切换为全屏歌词视图，切换按钮与播放页底行「歌词」槽位对齐。
+class PlayerPage extends ConsumerStatefulWidget {
   const PlayerPage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<PlayerPage> createState() => _PlayerPageState();
+}
+
+class _PlayerPageState extends ConsumerState<PlayerPage> {
+  /// 移动端：当前是否全屏歌词视图（true）/ 播放视图（false）。
+  bool _lyricsMode = false;
+
+  /// 桌面端：右侧歌词分栏是否展开（默认收起，点「歌词」打开）。
+  bool _lyricsPanelOpen = false;
+
+  @override
+  Widget build(BuildContext context) {
     final strings = context.strings;
     final state = ref.watch(audioControllerProvider);
     final track = state.currentTrack;
-    final prefs =
-        ref.watch(preferencesProvider).value ?? const AppPreferences();
+    final prefs = ref.watch(preferencesProvider).value ?? const AppPreferences();
+    final isDesktop =
+        MediaQuery.sizeOf(context).width >= AppBreakpoints.desktop;
 
     return Scaffold(
       backgroundColor: Colors.black,
@@ -43,9 +70,37 @@ class PlayerPage extends ConsumerWidget {
             coverPath: track?.coverPath,
           ),
           SafeArea(
-            child: state.hasTrack
-                ? _PlayerContent(state: state, strings: strings)
-                : _EmptyPlayback(strings: strings),
+            child: PullToDismiss(
+              enabled: !isDesktop,
+              onDismiss: () => Navigator.of(context).maybePop(),
+              child: Column(
+                children: [
+                  const SizedBox(height: AppTokens.spaceS),
+                  _CloseBar(
+                    onTap: () => Navigator.of(context).maybePop(),
+                  ),
+                  Expanded(
+                    child: state.hasTrack
+                        ? _PlayerContent(
+                            state: state,
+                            strings: strings,
+                            isDesktop: isDesktop,
+                            lyricsOpen: isDesktop
+                                ? _lyricsPanelOpen
+                                : _lyricsMode,
+                            onToggleLyrics: () => setState(() {
+                              if (isDesktop) {
+                                _lyricsPanelOpen = !_lyricsPanelOpen;
+                              } else {
+                                _lyricsMode = !_lyricsMode;
+                              }
+                            }),
+                          )
+                        : _EmptyPlayback(strings: strings),
+                  ),
+                ],
+              ),
+            ),
           ),
         ],
       ),
@@ -84,22 +139,57 @@ class _EmptyPlayback extends StatelessWidget {
   }
 }
 
-/// 播放页主体内容。
+/// 播放页主体内容（不含顶部收起条）：移动端播放/歌词双视图 + 桌面端分栏。
 class _PlayerContent extends ConsumerWidget {
-  const _PlayerContent({required this.state, required this.strings});
+  const _PlayerContent({
+    required this.state,
+    required this.strings,
+    required this.isDesktop,
+    required this.lyricsOpen,
+    required this.onToggleLyrics,
+  });
 
   final PlaybackState state;
   final AppStrings strings;
+  final bool isDesktop;
+  final bool lyricsOpen;
+  final VoidCallback onToggleLyrics;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final track = state.currentTrack!;
     final audio = ref.read(audioControllerProvider.notifier);
 
-    return Column(
+    // 当前曲目喜欢态：仅当播放中的歌曲存在于媒体库时可切换。
+    final songs = ref.watch(allSongsProvider).value ?? const <Song>[];
+    Song? favSong;
+    for (final s in songs) {
+      if (s.id.toString() == track.id) {
+        favSong = s;
+        break;
+      }
+    }
+    final isFavorite = favSong?.isFavorite ?? false;
+
+    // 睡眠定时剩余时长（null = 未启用）。
+    final sleepLeft = ref.watch(sleepTimerProvider);
+
+    // 歌词数据。
+    final lines =
+        ref.watch(lyricsLinesProvider).value ?? const <LyricsLine>[];
+    final activeIndex = ref.watch(activeLyricIndexProvider);
+    final lyricsRaw = ref.watch(lyricsRawProvider).value;
+
+    void seekTo(Duration d) => audio.seek(d);
+
+    Future<void> editLyrics({String? initial}) async {
+      final songId = ref.read(currentSongIdProvider);
+      if (songId == null) return;
+      await showLyricsEditor(context, ref, songId, initial: initial);
+    }
+
+    final playerColumn = Column(
       children: [
-        const SizedBox(height: AppTokens.spaceS),
-        _CloseBar(onTap: () => Navigator.of(context).maybePop()),
         const Spacer(flex: 1),
         Expanded(
           flex: 5,
@@ -126,20 +216,224 @@ class _PlayerContent extends ConsumerWidget {
           onPrev: audio.previous,
           onTogglePlay: audio.togglePlay,
           onNext: audio.next,
-          onLyrics: () => _showLyricsSheet(context, strings),
+          onQueue: () => _showQueueSheet(context, ref),
         ),
         const SizedBox(height: AppTokens.spaceS),
         _BottomRow(
           strings: strings,
-          onOpenQueue: () => _showQueueSheet(context, ref),
+          isFavorite: isFavorite,
+          favEnabled: favSong != null,
+          sleepLeft: sleepLeft,
+          volume: ref.watch(preferencesProvider).value?.defaultVolume ?? 1.0,
+          lyricsActive: lyricsOpen,
+          onToggleFavorite: favSong == null
+              ? null
+              : () => ref
+                  .read(mediaRepositoryProvider)
+                  .toggleFavorite(favSong!.id, !isFavorite),
+          onOpenTimer: () => _showSleepTimerSheet(context, ref),
+          onOpenVolume: () => _showVolumeSheet(context, ref),
+          onOpenLyrics: onToggleLyrics,
         ),
         const SizedBox(height: AppTokens.spaceM),
       ],
     );
+
+    // 歌词面板（桌面端右侧分栏 / 移动端全屏视图共享控件）。
+    final lyricsView = LyricsView(
+      lines: lines,
+      activeIndex: activeIndex,
+      onSeek: seekTo,
+      strings: strings,
+      onAddLyrics: () => editLyrics(),
+      onEditLyrics: () => editLyrics(initial: lyricsRaw),
+    );
+
+    // 桌面端：左侧控制元素固定，右侧歌词分栏动画展开/收起（抽屉式滑入滑出）。
+    if (isDesktop) {
+      final panelBody = Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  strings.playerLyrics,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: AppTokens.fontSizeTitle,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              IconButton(
+                key: const ValueKey('lyrics-panel-close'),
+                tooltip: strings.cancel,
+                onPressed: onToggleLyrics,
+                icon: const Icon(
+                  CupertinoIcons.xmark,
+                  size: 20,
+                  color: Colors.white,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppTokens.spaceS),
+          Expanded(child: lyricsView),
+        ],
+      );
+      return LayoutBuilder(
+        builder: (context, constraints) {
+          final panelWidth =
+              (constraints.maxWidth * 0.45).clamp(280.0, 460.0);
+          return Row(
+            children: [
+              Expanded(flex: 55, child: playerColumn),
+              AnimatedSwitcher(
+                duration: AppCurves.standardMotion,
+                switchInCurve: AppCurves.standard,
+                switchOutCurve: AppCurves.standard,
+                transitionBuilder: (child, animation) => FadeTransition(
+                  opacity: animation,
+                  child: SlideTransition(
+                    position:
+                        Tween(begin: const Offset(1, 0), end: Offset.zero)
+                            .animate(animation),
+                    child: child,
+                  ),
+                ),
+                child: lyricsOpen
+                    ? SizedBox(
+                        key: const ValueKey('lyrics-panel-open'),
+                        width: panelWidth,
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 1,
+                              margin: const EdgeInsets.symmetric(
+                                vertical: AppTokens.spaceL,
+                              ),
+                              color: Colors.white12,
+                            ),
+                            const SizedBox(width: AppTokens.spaceL),
+                            Expanded(
+                              child: Padding(
+                                padding: const EdgeInsets.only(
+                                  right: AppTokens.spaceL,
+                                ),
+                                child: panelBody,
+                              ),
+                            ),
+                          ],
+                        ),
+                      )
+                    : const SizedBox(
+                        key: ValueKey('lyrics-panel-closed'),
+                        width: 0,
+                      ),
+              ),
+            ],
+          );
+        },
+      );
+    }
+
+    // 移动端：播放视图 ↔ 全屏歌词视图平滑过渡。
+    final mobileLyrics = LayoutBuilder(
+      builder: (context, constraints) {
+        return Stack(
+          children: [
+            Positioned.fill(child: lyricsView),
+            // 切换按钮与播放页底行「歌词」槽位对齐：鼠标几乎不移动即可切回。
+            Positioned(
+              right: _lyricsToggleRight(constraints.maxWidth),
+              bottom: _lyricsToggleBottom,
+              child: _LyricsToggleButton(
+                strings: strings,
+                onTap: onToggleLyrics,
+              ),
+            ),
+          ],
+        );
+      },
+    );
+    return AnimatedSwitcher(
+      duration: AppCurves.pageTransition,
+      switchInCurve: AppCurves.standard,
+      switchOutCurve: AppCurves.standard,
+      transitionBuilder: (child, animation) {
+        // 歌词从下方滑入、播放视图反向滑出；反向时自动对称。
+        final isLyrics = child.key == const ValueKey('lyrics-view');
+        final begin = isLyrics ? const Offset(0, 0.06) : const Offset(0, -0.06);
+        return FadeTransition(
+          opacity: animation,
+          child: SlideTransition(
+            position: Tween(begin: begin, end: Offset.zero).animate(animation),
+            child: child,
+          ),
+        );
+      },
+      child: lyricsOpen
+          ? KeyedSubtree(key: const ValueKey('lyrics-view'), child: mobileLyrics)
+          : KeyedSubtree(key: const ValueKey('player-view'), child: playerColumn),
+    );
   }
 }
 
-/// 顶部「▾ 下拉收起」按钮。
+/// 底行槽位几何：播放页底行与歌词视图切回按钮共享，保证二者对齐。
+const double _bottomSlotWidth = 48;
+const double _bottomSlotHeight = 52;
+
+/// 移动端歌词切换按钮（圆形）的直径。
+const double _lyricsToggleDiameter = 46;
+
+/// 「歌词 → 播放视图」右下角切换按钮（仅移动端全屏歌词视图显示）。
+///
+/// 位置与播放页底行「歌词」槽位对齐：从播放页点歌词进入歌词页后，
+/// 几乎不用移动鼠标即可点该按钮切回播放视图。
+class _LyricsToggleButton extends StatelessWidget {
+  const _LyricsToggleButton({required this.strings, required this.onTap});
+
+  final AppStrings strings;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: strings.lyricsBackToPlayer,
+      child: Material(
+        color: Colors.white.withValues(alpha: 0.12),
+        shape: const CircleBorder(),
+        child: InkWell(
+          key: const ValueKey('lyrics-toggle-player'),
+          customBorder: const CircleBorder(),
+          onTap: onTap,
+          child: const Padding(
+            padding: EdgeInsets.all(12),
+            child: Icon(
+              CupertinoIcons.music_note,
+              color: Colors.white,
+              size: 22,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 切换按钮距容器右缘的偏移：使按钮中心与底行第 4 个槽位（歌词）中心对齐。
+/// 底行 4 个等宽槽位 spaceEvenly 排布，槽间空隙 = (W - 4*slotW) / 5。
+double _lyricsToggleRight(double width) {
+  final gap = (width - 4 * _bottomSlotWidth) / 5;
+  return gap + (_bottomSlotWidth - _lyricsToggleDiameter) / 2;
+}
+
+/// 切换按钮距容器底缘的偏移：与底行中心对齐（底行下方有 spaceM 间距）。
+double get _lyricsToggleBottom =>
+    AppTokens.spaceM + (_bottomSlotHeight - _lyricsToggleDiameter) / 2;
+
+/// 顶部「下拉收起」细横线（Apple Music 风格抓取条）。
 class _CloseBar extends StatelessWidget {
   const _CloseBar({required this.onTap});
 
@@ -147,15 +441,22 @@ class _CloseBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: GestureDetector(
-        onTap: onTap,
-        child: const GlassOverlay(
-          padding: EdgeInsets.all(8),
-          radius: AppTokens.radiusPill,
-          child: Icon(
-            Icons.keyboard_arrow_down_rounded,
-            color: Colors.white,
+    return GestureDetector(
+      key: const ValueKey('player-close-bar'),
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: AppTokens.spaceL),
+        child: const Center(
+          child: SizedBox(
+            width: 44,
+            height: 5,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.all(Radius.circular(3)),
+              ),
+            ),
           ),
         ),
       ),
@@ -520,7 +821,7 @@ class _PlayerSeekBarState extends State<_PlayerSeekBar> {
   }
 }
 
-/// 空格键行：🔁 播放模式 · ⏮ · ▶/⏸ · ⏭ · 🎤 歌词。
+/// 空格键行：🔁 播放模式 · ⏮ · ▶/⏸ · ⏭ · ▾ 播放队列。
 class _TransportRow extends StatelessWidget {
   const _TransportRow({
     required this.strings,
@@ -530,7 +831,7 @@ class _TransportRow extends StatelessWidget {
     required this.onPrev,
     required this.onTogglePlay,
     required this.onNext,
-    required this.onLyrics,
+    required this.onQueue,
   });
 
   final AppStrings strings;
@@ -540,7 +841,7 @@ class _TransportRow extends StatelessWidget {
   final VoidCallback onPrev;
   final VoidCallback onTogglePlay;
   final VoidCallback onNext;
-  final VoidCallback onLyrics;
+  final VoidCallback onQueue;
 
   (IconData, String) _modeStyle(AppStrings s, PlaybackMode m) {
     switch (m) {
@@ -619,92 +920,326 @@ class _TransportRow extends StatelessWidget {
           onTap: onNext,
           size: 34,
         ),
-        _transportButton(
-          context,
-          icon: CupertinoIcons.mic_fill,
-          tooltip: strings.playerLyrics,
-          onTap: onLyrics,
-          size: 26,
+        IconButton(
+          key: const ValueKey('player-queue-button'),
+          onPressed: onQueue,
+          tooltip: strings.playerQueue,
+          iconSize: 26,
+          padding: const EdgeInsets.all(10),
+          icon: const Icon(
+            CupertinoIcons.list_bullet,
+            color: Colors.white,
+          ),
         ),
       ],
     );
   }
 }
 
-/// 底行：播放队列 ▾ · 收藏 ♥（占位）· ⋯ · 睡眠定时（占位）。
+/// 底行（从左到右）：喜欢 ♥ · 睡眠定时 🌙 · 音量 🔊 · 歌词 📄。
+/// 四个槽位等宽，定时启用时图标+倒计时纵向堆叠，宽度固定不变不挤占其它按钮。
 class _BottomRow extends StatelessWidget {
-  const _BottomRow({required this.strings, required this.onOpenQueue});
+  const _BottomRow({
+    required this.strings,
+    required this.isFavorite,
+    required this.favEnabled,
+    required this.sleepLeft,
+    required this.volume,
+    required this.lyricsActive,
+    required this.onToggleFavorite,
+    required this.onOpenTimer,
+    required this.onOpenVolume,
+    required this.onOpenLyrics,
+  });
+
+  /// 槽位固定宽度：等宽图标列，任何变化不影响其它按钮位置。
+  static const double _slotWidth = _bottomSlotWidth;
+  static const double _slotHeight = _bottomSlotHeight;
 
   final AppStrings strings;
-  final VoidCallback onOpenQueue;
+  final bool isFavorite;
+  final bool favEnabled;
+  final Duration? sleepLeft;
+  final double volume;
+  final bool lyricsActive;
+  final VoidCallback? onToggleFavorite;
+  final VoidCallback onOpenTimer;
+  final VoidCallback onOpenVolume;
+  final VoidCallback onOpenLyrics;
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-      children: [
-        InkWell(
-          key: const ValueKey('player-queue-button'),
-          onTap: onOpenQueue,
-          borderRadius: BorderRadius.circular(AppTokens.radiusPill),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppTokens.spaceM,
-              vertical: AppTokens.spaceS,
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(
-                  CupertinoIcons.list_bullet,
-                  size: 18,
-                  color: Colors.white,
+    return SizedBox(
+      height: _slotHeight,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          // 喜欢（红心动画切换）。
+          SizedBox(
+            width: _slotWidth,
+            child: IconButton(
+              key: const ValueKey('player-favorite-button'),
+              onPressed: favEnabled ? onToggleFavorite : null,
+              tooltip: isFavorite ? strings.unfavorite : strings.favorite,
+              icon: AnimatedSwitcher(
+                duration: AppCurves.quickMotion,
+                transitionBuilder: (child, animation) =>
+                    ScaleTransition(scale: animation, child: child),
+                child: Icon(
+                  isFavorite ? CupertinoIcons.heart_fill : CupertinoIcons.heart,
+                  key: ValueKey(isFavorite),
+                  color: isFavorite ? AppTokens.favorite : Colors.white,
                 ),
-                const SizedBox(width: AppTokens.spaceXs),
-                Text(
-                  strings.playerQueue,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: AppTokens.fontSizeBody,
-                  ),
-                ),
-              ],
+              ),
             ),
           ),
-        ),
-        _placeholderButton(
-          context,
-          icon: CupertinoIcons.heart,
-          tooltip: strings.favorite,
-        ),
-        _placeholderButton(
-          context,
-          icon: CupertinoIcons.ellipsis,
-          tooltip: strings.playerComingSoon,
-        ),
-        _placeholderButton(
-          context,
-          icon: CupertinoIcons.moon_zzz_fill,
-          tooltip: strings.playerComingSoon,
-        ),
-      ],
-    );
-  }
-
-  Widget _placeholderButton(
-    BuildContext context, {
-    required IconData icon,
-    required String tooltip,
-  }) {
-    return IconButton(
-      onPressed: null,
-      tooltip: tooltip,
-      icon: Icon(icon, color: Colors.white54),
+          // 睡眠定时（启用时图标 + mm:ss 倒计时，纵向堆叠于固定槽内）。
+          _TimerButton(
+            strings: strings,
+            sleepLeft: sleepLeft,
+            onTap: onOpenTimer,
+            width: _slotWidth,
+            height: _slotHeight,
+          ),
+          // 音量（静音时换图标）。
+          SizedBox(
+            width: _slotWidth,
+            child: IconButton(
+              key: const ValueKey('player-volume-button'),
+              onPressed: onOpenVolume,
+              tooltip: strings.playerVolume,
+              icon: Icon(
+                volume <= 0
+                    ? CupertinoIcons.volume_mute
+                    : CupertinoIcons.speaker_2_fill,
+                color: Colors.white,
+              ),
+            ),
+          ),
+          // 歌词（展开时高亮）。
+          SizedBox(
+            width: _slotWidth,
+            child: IconButton(
+              key: const ValueKey('player-lyrics-button'),
+              onPressed: onOpenLyrics,
+              tooltip: strings.playerLyrics,
+              icon: Icon(
+                CupertinoIcons.doc_text,
+                color: lyricsActive
+                    ? Theme.of(context).colorScheme.primary
+                    : Colors.white,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
 
-/// 播放队列 bottom sheet：当前曲目高亮，点行即切歌并收起。
+/// 睡眠定时按钮：未启用显示 🌙；启用后 🌙 + mm:ss 倒计时（仅图标与时间，无文案）。
+class _TimerButton extends StatelessWidget {
+  const _TimerButton({
+    required this.strings,
+    required this.sleepLeft,
+    required this.onTap,
+    this.width = 48,
+    this.height = 52,
+  });
+
+  final AppStrings strings;
+  final Duration? sleepLeft;
+  final VoidCallback onTap;
+  final double width;
+  final double height;
+
+  @override
+  Widget build(BuildContext context) {
+    final remaining = sleepLeft;
+    final scheme = Theme.of(context).colorScheme;
+    return SizedBox(
+      width: width,
+      height: height,
+      child: InkWell(
+        key: const ValueKey('player-timer-button'),
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(AppTokens.radiusPill),
+        child: remaining != null
+            ? Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(
+                    CupertinoIcons.moon_zzz_fill,
+                    size: 20,
+                    color: Colors.white,
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    _formatClock(remaining),
+                    style: TextStyle(
+                      color: scheme.primary,
+                      fontSize: AppTokens.fontSizeCaption,
+                      fontWeight: FontWeight.w600,
+                      height: 1,
+                    ),
+                  ),
+                ],
+              )
+            : const Center(
+                child: Icon(
+                  CupertinoIcons.moon_zzz_fill,
+                  size: 22,
+                  color: Colors.white,
+                ),
+              ),
+      ),
+    );
+  }
+}
+
+/// mm:ss 倒计时格式。
+String _formatClock(Duration d) {
+  final m = d.inMinutes;
+  final s = (d.inSeconds % 60).toString().padLeft(2, '0');
+  return '$m:$s';
+}
+
+/// 睡眠定时选择。
+Future<void> _showSleepTimerSheet(BuildContext context, WidgetRef ref) async {
+  final strings = context.strings;
+  final current = ref.read(sleepTimerProvider);
+  const presets = [15, 30, 45, 60];
+
+  final result = await showCenterPopup<Duration?>(
+    context,
+    child: GlassOverlay(
+      radius: AppTokens.radiusL,
+      child: SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(AppTokens.spaceM),
+              child: Text(
+                strings.playerSleepTimer,
+                style: Theme.of(context)
+                    .textTheme
+                    .titleMedium
+                    ?.copyWith(fontWeight: FontWeight.w700),
+              ),
+            ),
+            _sleepTile(context, strings, strings.playerSleepOff,
+                Duration.zero, current),
+            for (final m in presets)
+              _sleepTile(context, strings, strings.sleepTimerMinutes(m),
+                  Duration(minutes: m), current),
+            const SizedBox(height: AppTokens.spaceS),
+          ],
+        ),
+      ),
+    ),
+  );
+
+  if (result == null) return; // 点击外部/取消。
+  final timer = ref.read(sleepTimerProvider.notifier);
+  if (result <= Duration.zero) {
+    timer.stop();
+  } else {
+    timer.start(result);
+  }
+}
+
+Widget _sleepTile(
+  BuildContext context,
+  AppStrings strings,
+  String label,
+  Duration value,
+  Duration? current,
+) {
+  final theme = Theme.of(context);
+  final checked = value == Duration.zero ? current == null : current == value;
+  return ListTile(
+    dense: true,
+    leading: Icon(
+      checked ? CupertinoIcons.checkmark_circle_fill : CupertinoIcons.circle,
+      color: checked
+          ? theme.colorScheme.primary
+          : theme.colorScheme.onSecondary,
+    ),
+    title: Text(
+      label,
+      style: theme.textTheme.bodyLarge?.copyWith(
+        color: checked ? theme.colorScheme.primary : theme.colorScheme.onSurface,
+        fontWeight: checked ? FontWeight.w600 : FontWeight.w400,
+      ),
+    ),
+    onTap: () => Navigator.of(context).pop(value),
+  );
+}
+
+/// 音量调节：居中弹窗内滑杆（0–100%），改动即时持久化并应用到引擎。
+Future<void> _showVolumeSheet(BuildContext context, WidgetRef ref) async {
+  final strings = context.strings;
+  await showCenterPopup<void>(
+    context,
+    child: GlassOverlay(
+      radius: AppTokens.radiusL,
+      child: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(AppTokens.spaceL),
+          child: Consumer(
+            builder: (context, ref, _) {
+              final volume =
+                  ref.watch(preferencesProvider).value?.defaultVolume ?? 1.0;
+              final theme = Theme.of(context);
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    strings.playerVolume,
+                    style: theme.textTheme.titleMedium
+                        ?.copyWith(fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: AppTokens.spaceS),
+                  Row(
+                    children: [
+                      Icon(
+                        volume <= 0
+                            ? CupertinoIcons.volume_mute
+                            : CupertinoIcons.speaker_2_fill,
+                        size: 20,
+                        color: theme.colorScheme.onSecondary,
+                      ),
+                      const SizedBox(width: AppTokens.spaceM),
+                      Expanded(
+                        child: Slider(
+                          value: volume.clamp(0.0, 1.0),
+                          onChanged: (v) => ref
+                              .read(preferencesProvider.notifier)
+                              .setDefaultVolume(v),
+                        ),
+                      ),
+                      Text(
+                        '${(volume * 100).round()}%',
+                        style: theme.textTheme.bodyMedium
+                            ?.copyWith(color: theme.colorScheme.onSecondary),
+                      ),
+                    ],
+                  ),
+                ],
+              );
+            },
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+/// 播放队列：当前曲目高亮，点行即切歌并收起。
 Future<void> _showQueueSheet(BuildContext context, WidgetRef ref) async {
   final strings = context.strings;
   final state = ref.read(audioControllerProvider);
@@ -712,55 +1247,46 @@ Future<void> _showQueueSheet(BuildContext context, WidgetRef ref) async {
   if (queue.isEmpty) return;
   final audio = ref.read(audioControllerProvider.notifier);
 
-  return showModalBottomSheet<void>(
-    context: context,
-    backgroundColor: Colors.transparent,
-    barrierColor: Colors.black54,
-    builder: (sheetContext) {
-      return SafeArea(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxHeight: 420),
-          child: GlassOverlay(
-            radius: AppTokens.radiusL,
-            tint: Colors.black.withValues(alpha: 0.55),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.all(AppTokens.spaceM),
-                  child: Text(
-                    strings.playerUpNext,
-                    style: Theme.of(sheetContext).textTheme.titleLarge?.copyWith(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w700,
-                        ),
+  await showCenterPopup<void>(
+    context,
+    child: GlassOverlay(
+      radius: AppTokens.radiusL,
+      tint: Colors.black.withValues(alpha: 0.55),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(AppTokens.spaceM),
+            child: Text(
+              strings.playerUpNext,
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
                   ),
-                ),
-                Flexible(
-                  child: ListView.separated(
-                    shrinkWrap: true,
-                    itemCount: queue.length,
-                    separatorBuilder: (_, _) => const SizedBox(height: 2),
-                    itemBuilder: (_, index) {
-                      final current = index == state.currentIndex;
-                      return _QueueRow(
-                        track: queue[index],
-                        current: current,
-                        onTap: () {
-                          audio.playQueue(queue, startIndex: index);
-                          Navigator.of(sheetContext).pop();
-                        },
-                      );
-                    },
-                  ),
-                ),
-                const SizedBox(height: AppTokens.spaceS),
-              ],
             ),
           ),
-        ),
-      );
-    },
+          Flexible(
+            child: ListView.separated(
+              shrinkWrap: true,
+              itemCount: queue.length,
+              separatorBuilder: (_, _) => const SizedBox(height: 2),
+              itemBuilder: (_, index) {
+                final current = index == state.currentIndex;
+                return _QueueRow(
+                  track: queue[index],
+                  current: current,
+                  onTap: () {
+                    audio.playQueue(queue, startIndex: index);
+                    Navigator.of(context).pop();
+                  },
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: AppTokens.spaceS),
+        ],
+      ),
+    ),
   );
 }
 
@@ -802,48 +1328,4 @@ class _QueueRow extends StatelessWidget {
       onTap: onTap,
     );
   }
-}
-
-/// 歌词 bottom sheet：暂仅「暂无歌词」占位。
-Future<void> _showLyricsSheet(BuildContext context, AppStrings strings) {
-  return showModalBottomSheet<void>(
-    context: context,
-    backgroundColor: Colors.transparent,
-    barrierColor: Colors.black54,
-    builder: (sheetContext) {
-      return SafeArea(
-        child: GlassOverlay(
-          radius: AppTokens.radiusL,
-          tint: Colors.black.withValues(alpha: 0.55),
-          child: Padding(
-            padding: const EdgeInsets.all(AppTokens.spaceL),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  strings.playerLyrics,
-                  style: Theme.of(sheetContext)
-                      .textTheme
-                      .titleLarge
-                      ?.copyWith(color: Colors.white),
-                ),
-                const SizedBox(height: AppTokens.spaceL),
-                const Icon(
-                  CupertinoIcons.mic_fill,
-                  size: 40,
-                  color: Colors.white54,
-                ),
-                const SizedBox(height: AppTokens.spaceM),
-                Text(
-                  strings.playerNoLyrics,
-                  style: const TextStyle(color: Colors.white70),
-                ),
-                const SizedBox(height: AppTokens.spaceM),
-              ],
-            ),
-          ),
-        ),
-      );
-    },
-  );
 }

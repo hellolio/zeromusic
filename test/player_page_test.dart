@@ -12,6 +12,7 @@ import 'package:zeromusic/services/preferences/preferences_controller.dart';
 import 'package:zeromusic/ui/pages/player/player_background.dart';
 import 'package:zeromusic/ui/pages/player/player_page.dart';
 import 'package:zeromusic/ui/scaffold/adaptive_scaffold.dart';
+import 'package:zeromusic/ui/mini_player/mini_player.dart';
 
 import 'helpers.dart';
 import 'support/fake_audio_engine.dart';
@@ -56,6 +57,7 @@ void main() {
     FakeAudioEngine? engine,
     InMemoryPreferencesStore? preferencesStore,
     List<Track> queue = const [t1, t2],
+    FakeDataLayer? dataLayer,
   }) async {
     final e = engine ?? FakeAudioEngine();
     await pumpApp(
@@ -63,7 +65,8 @@ void main() {
       engine: e,
       preferencesStore: preferencesStore,
       viewport: const Size(1400, 900),
-      overrides: fakeDataLayerOverrides(FakeDataLayer(seed: const [])),
+      overrides:
+          fakeDataLayerOverrides(dataLayer ?? FakeDataLayer(seed: const [])),
     );
     if (queue.isNotEmpty) {
       final container = ProviderScope.containerOf(
@@ -72,7 +75,8 @@ void main() {
       container.read(audioControllerProvider.notifier).playQueue(queue);
       await tester.pumpAndSettle();
     }
-    await tester.tap(find.byIcon(Icons.play_circle_outline));
+    // 播放页唯一入口：点按迷你播放条推入全屏路由。
+    await tester.tap(find.byType(MiniPlayer));
     await tester.pumpAndSettle();
     return e;
   }
@@ -284,10 +288,47 @@ void main() {
   testWidgets('TC-11 歌词面板占位', (tester) async {
     await pumpPlayer(tester);
 
-    await tester.tap(inPlayer(find.byIcon(CupertinoIcons.mic_fill)));
+    await tester.tap(inPlayer(find.byKey(const ValueKey('player-lyrics-button'))));
     await tester.pumpAndSettle();
 
     expect(find.text('No lyrics available'), findsOneWidget);
+  });
+
+  testWidgets('TC-17 桌面端：迷你条点按进入全屏播放页，点按收起条返回', (tester) async {
+    await pumpPlayer(tester);
+
+    expect(find.byType(PlayerPage), findsOneWidget);
+    expect(find.byKey(const ValueKey('player-close-bar')), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('player-close-bar')));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(PlayerPage), findsNothing);
+  });
+
+  testWidgets('TC-18 移动端：全屏路由显示收起条，点按关闭返回', (tester) async {
+    await pumpApp(
+      tester,
+      engine: FakeAudioEngine(),
+      viewport: const Size(600, 900),
+      overrides: fakeDataLayerOverrides(FakeDataLayer(seed: const [])),
+    );
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(AdaptiveScaffold)),
+    );
+    container.read(audioControllerProvider.notifier).playQueue(const [t1, t2]);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byType(MiniPlayer));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(PlayerPage), findsOneWidget);
+    expect(find.byKey(const ValueKey('player-close-bar')), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('player-close-bar')));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(PlayerPage), findsNothing);
   });
 
   testWidgets('TC-12 空媒体库空态', (tester) async {
@@ -300,7 +341,10 @@ void main() {
       ],
     );
 
-    await tester.tap(find.byIcon(Icons.play_circle_outline));
+    // 空库时迷你条隐藏，直接推入播放页路由验证空态。
+    Navigator.of(tester.element(find.byType(AdaptiveScaffold))).push(
+      MaterialPageRoute(builder: (_) => const PlayerPage()),
+    );
     await tester.pumpAndSettle();
 
     expect(find.byType(PlayerPage), findsOneWidget);
@@ -355,18 +399,181 @@ void main() {
     expect(radialBlobCount(tester), 12);
   });
 
-  testWidgets('TC-14 占位按钮为禁用态', (tester) async {
+  testWidgets('TC-14 底行按钮：空库喜欢禁用，定时/更多可点', (tester) async {
     await pumpPlayer(tester);
 
-    IconButton button(IconData icon) => tester.widget<IconButton>(
-          find.ancestor(
-            of: inPlayer(find.byIcon(icon)),
-            matching: find.byType(IconButton),
-          ),
-        );
-    expect(button(CupertinoIcons.heart).onPressed, isNull);
-    expect(button(CupertinoIcons.ellipsis).onPressed, isNull);
-    expect(button(CupertinoIcons.moon_zzz_fill).onPressed, isNull);
+    // 喜欢：当前曲目不在媒体库（空库 seed）→ 按钮禁用。
+    final favButton = tester.widget<IconButton>(
+      find.ancestor(
+        of: inPlayer(find.byIcon(CupertinoIcons.heart)),
+        matching: find.byType(IconButton),
+      ),
+    );
+    expect(favButton.onPressed, isNull);
+    expect(favButton.onPressed, isNull);
+
+    // 定时 / 音量按钮存在且已启用。
+    expect(find.byKey(const ValueKey('player-timer-button')), findsOneWidget);
+    expect(find.byKey(const ValueKey('player-volume-button')), findsOneWidget);
+  });
+
+  testWidgets('TC-14b 喜欢切换：红心点亮并持久化到媒体库', (tester) async {
+    final layer = FakeDataLayer(seed: const []);
+    final id = await layer.mediaRepository.addSong(
+      title: '测试喜欢曲',
+      artist: '歌手A',
+      durationMs: 120000,
+      filePath: '/fixture/fav.mp3',
+    );
+    final song = layer.mediaRepository.songs.firstWhere((s) => s.id == id);
+    await pumpPlayer(tester, queue: [Track.fromSong(song)], dataLayer: layer);
+
+    // 初始未喜欢 → 空心 ♥。
+    expect(inPlayer(find.byIcon(CupertinoIcons.heart)), findsOneWidget);
+    expect(inPlayer(find.byIcon(CupertinoIcons.heart_fill)), findsNothing);
+
+    // 点按喜欢 → 红心点亮并写入媒体库。
+    await tester.tap(inPlayer(find.byIcon(CupertinoIcons.heart)));
+    await tester.pumpAndSettle();
+    expect(inPlayer(find.byIcon(CupertinoIcons.heart_fill)), findsOneWidget);
+    expect(layer.mediaRepository.songs.single.isFavorite, isTrue);
+
+    // 再点取消喜欢。
+    await tester.tap(inPlayer(find.byIcon(CupertinoIcons.heart_fill)));
+    await tester.pumpAndSettle();
+    expect(inPlayer(find.byIcon(CupertinoIcons.heart)), findsOneWidget);
+    expect(layer.mediaRepository.songs.single.isFavorite, isFalse);
+  });
+
+  testWidgets('睡眠定时：选择 15 分钟倒计时后自动暂停', (tester) async {
+    final engine = await pumpPlayer(tester);
+
+    // 点定时按钮弹出居中选择。
+    await tester.tap(find.byKey(const ValueKey('player-timer-button')));
+    await tester.pumpAndSettle();
+    expect(find.text('15 min'), findsOneWidget);
+
+    await tester.tap(find.text('15 min'));
+    await tester.pumpAndSettle();
+
+    // 激活：定时按钮上显示倒计时（弹出层已收起，倒计时内嵌于按钮）。
+    expect(inPlayer(find.text('15:00')), findsOneWidget);
+
+    // 快进到倒计时归零 → 自动暂停。
+    await tester.pump(const Duration(minutes: 15));
+    await tester.pump();
+    expect(engine.pauseCount, greaterThan(0));
+    expect(playerState(tester).isPlaying, isFalse);
+
+    // 归零后按钮恢复为 🌙 图标。
+    expect(inPlayer(find.byIcon(CupertinoIcons.moon_zzz_fill)), findsOneWidget);
+  });
+
+  testWidgets('播放页音量：点按钮弹滑杆，拖动联动偏好与引擎', (tester) async {
+    final engine = await pumpPlayer(tester);
+
+    await tester.tap(find.byKey(const ValueKey('player-volume-button')));
+    await tester.pumpAndSettle();
+
+    // 弹窗标题 + 滑杆出现。
+    expect(find.text('Volume'), findsOneWidget);
+    expect(find.byType(Slider), findsOneWidget);
+
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(PlayerPage)),
+    );
+    final before =
+        container.read(preferencesProvider).value?.defaultVolume ?? 1.0;
+
+    await tester.drag(find.byType(Slider), const Offset(-200, 0),
+        warnIfMissed: false);
+    await tester.pumpAndSettle();
+
+    final after =
+        container.read(preferencesProvider).value?.defaultVolume ?? 1.0;
+    expect(after, lessThan(before));
+    expect(engine.lastVolume!, closeTo(after, 1e-9));
+  });
+
+  testWidgets('TC-20 按钮布局轮换：队列上移至传输行，音量/歌词在底行', (tester) async {
+    await pumpPlayer(tester);
+
+    // 队列按钮在传输行（y 明显小于底行按钮）。
+    final queueY = tester
+        .getCenter(find.byKey(const ValueKey('player-queue-button')))
+        .dy;
+    final volumeY =
+        tester.getCenter(find.byKey(const ValueKey('player-volume-button'))).dy;
+    final lyricsY = tester
+        .getCenter(find.byKey(const ValueKey('player-lyrics-button')))
+        .dy;
+
+    expect(queueY, lessThan(volumeY));
+
+    // 音量与歌词同处底行（同一水平带）。
+    expect((volumeY - lyricsY).abs(), lessThan(2));
+
+    // 队列按钮图标为列表，位于传输行最后一个槽位（最靠右）。
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('player-queue-button')),
+        matching: find.byIcon(CupertinoIcons.list_bullet),
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('桌面端：歌词面板顶部关闭按钮可关闭面板', (tester) async {
+    await pumpPlayer(tester);
+
+    // 桌面端歌词分栏默认收起 → 点底行歌词按钮打开。
+    expect(find.byKey(const ValueKey('lyrics-panel-close')), findsNothing);
+    await tester.tap(inPlayer(find.byKey(const ValueKey('player-lyrics-button'))));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('lyrics-panel-close')), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('lyrics-panel-close')));
+    await tester.pumpAndSettle();
+
+    // 面板关闭后关闭按钮随之消失。
+    expect(find.byKey(const ValueKey('lyrics-panel-close')), findsNothing);
+  });
+
+  testWidgets('移动端：全屏歌词切换按钮位于底行歌词槽位附近', (tester) async {
+    await pumpApp(
+      tester,
+      engine: FakeAudioEngine(),
+      viewport: const Size(600, 900),
+      overrides: fakeDataLayerOverrides(FakeDataLayer(seed: const [])),
+    );
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(AdaptiveScaffold)),
+    );
+    container.read(audioControllerProvider.notifier).playQueue(const [t1, t2]);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byType(MiniPlayer));
+    await tester.pumpAndSettle();
+
+    // 点底行歌词按钮进入全屏歌词。
+    await tester.tap(inPlayer(find.byKey(const ValueKey('player-lyrics-button'))));
+    await tester.pumpAndSettle();
+
+    final toggle = find.byKey(const ValueKey('lyrics-toggle-player'));
+    expect(toggle, findsOneWidget);
+
+    final center = tester.getCenter(toggle);
+    final w = 600.0;
+    final h = 900.0;
+    // 位于底部偏右（底行歌词槽位所在区域），非屏幕角落。
+    expect(center.dx, greaterThan(w * 0.6));
+    expect(center.dy, greaterThan(h * 0.7));
+
+    // 点切换按钮切回播放视图。
+    await tester.tap(toggle);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('lyrics-toggle-player')), findsNothing);
+    expect(find.byKey(const ValueKey('player-lyrics-button')), findsOneWidget);
   });
 }
 

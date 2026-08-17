@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:zeromusic/data/database/app_database.dart';
+import 'package:zeromusic/data/repository/lyrics_repository.dart';
 import 'package:zeromusic/data/repository/media_repository.dart';
 import 'package:zeromusic/data/repository/tag_repository.dart';
 
@@ -36,6 +37,8 @@ class FakeDataLayer {
   late final FakeMediaRepository mediaRepository =
       FakeMediaRepository(_store);
   late final FakeTagRepository tagRepository = FakeTagRepository(_store);
+  late final FakeLyricsRepository lyricsRepository =
+      FakeLyricsRepository();
 
   /// 歌曲 → 标签 链接（供仓库级断言）。
   Map<int, Set<int>> get songTagLinks => _store.songTagLinks;
@@ -356,5 +359,49 @@ class FakeTagRepository implements TagRepository {
       }
     }
     _store.notify();
+  }
+}
+
+/// 内存版歌词仓库：模拟 [LyricsRepository] 语义（watch 流 + 存/删）。
+class FakeLyricsRepository implements LyricsRepository {
+  final Map<int, String> _lyrics = {};
+  final Map<int, StreamController<String?>> _controllers = {};
+
+  /// 当前歌词快照（供测试断言）。
+  Map<int, String> get lyrics => Map.of(_lyrics);
+
+  StreamController<String?> _controller(int songId) =>
+      _controllers.putIfAbsent(
+        songId,
+        () => StreamController<String?>.broadcast(),
+      );
+
+  @override
+  Stream<String?> watchLyrics(int songId) {
+    final controller = _controller(songId);
+    Future.microtask(() {
+      if (!controller.isClosed) {
+        controller.add(_lyrics[songId]);
+      }
+    });
+    return controller.stream;
+  }
+
+  @override
+  Future<void> saveLyrics(int songId, String lrcText) async {
+    _lyrics[songId] = lrcText;
+    final controller = _controllers[songId];
+    if (controller != null && !controller.isClosed) {
+      controller.add(lrcText);
+    }
+  }
+
+  @override
+  Future<void> removeLyrics(int songId) async {
+    _lyrics.remove(songId);
+    final controller = _controllers[songId];
+    if (controller != null && !controller.isClosed) {
+      controller.add(null);
+    }
   }
 }

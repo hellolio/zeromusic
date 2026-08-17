@@ -41,13 +41,10 @@ class AppStringsZh extends AppStrings {
   String get tabAll => '全部';
 
   @override
-  String get tabAlbums => '专辑';
-
-  @override
   String get tabArtists => '艺人';
 
   @override
-  String get tabFavorites => '收藏';
+  String get tabFavorites => '喜欢';
 
   @override
   String get tabRecent => '最近播放';
@@ -62,10 +59,10 @@ class AppStringsZh extends AppStrings {
   String get search => '搜索';
 
   @override
-  String get favorite => '加入收藏';
+  String get favorite => '加入喜欢';
 
   @override
-  String get unfavorite => '取消收藏';
+  String get unfavorite => '取消喜欢';
 
   @override
   String get tagSong => '打标签';
@@ -125,6 +122,21 @@ class AppStringsZh extends AppStrings {
   String get playerNoLyrics => '暂无歌词';
 
   @override
+  String get lyricsAdd => '添加歌词';
+
+  @override
+  String get lyricsEdit => '编辑歌词';
+
+  @override
+  String get lyricsHint => '粘贴 LRC 歌词文本，如：[00:12.00] 歌词内容';
+
+  @override
+  String get lyricsInvalid => '未找到有效歌词行';
+
+  @override
+  String get lyricsBackToPlayer => '返回播放页';
+
+  @override
   String get playerQueue => '播放队列';
 
   @override
@@ -141,6 +153,18 @@ class AppStringsZh extends AppStrings {
 
   @override
   String get playerShuffle => '随机播放';
+
+  @override
+  String get playerVolume => '音量调节';
+
+  @override
+  String get playerSleepTimer => '睡眠定时';
+
+  @override
+  String get playerSleepOff => '关闭';
+
+  @override
+  String sleepTimerMinutes(int minutes) => '$minutes 分钟';
 
   @override
   String get miniPrevious => '上一首';

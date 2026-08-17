@@ -17,7 +17,7 @@ CREATE TABLE songs (
   media_type      INTEGER NOT NULL DEFAULT 0,     -- 0=音频 1=视频
   file_path       TEXT    NOT NULL UNIQUE,        -- 本地路径（防重复导入）
   cover_path      TEXT,                           -- 封面图路径
-  is_favorite     INTEGER NOT NULL DEFAULT 0,     -- 0/1 收藏
+  is_favorite     INTEGER NOT NULL DEFAULT 0,     -- 0/1 喜欢
   play_count      INTEGER NOT NULL DEFAULT 0,     -- 播放次数
   last_played_at  INTEGER,                        -- 最近播放时间（epoch ms）
   created_at      INTEGER NOT NULL                -- 导入时间（epoch ms）

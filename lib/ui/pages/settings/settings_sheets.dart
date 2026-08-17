@@ -6,6 +6,7 @@ import '../../../core/localization/app_strings.dart';
 import '../../../core/localization/localizations_delegate.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../services/preferences/preferences_controller.dart';
+import '../../components/center_popup.dart';
 import '../../components/glass_overlay.dart';
 
 /// 主题模式的中/英/日标签（页面行值与选择弹层共用）。
@@ -33,11 +34,10 @@ String backgroundEffectLabel(
   }
 }
 
-/// 背景效果档位三态选择：桌面端锚点菜单，移动端毛玻璃底部弹层。
+/// 背景效果档位三态选择：居中弹窗（桌面/移动一致）。
 Future<void> showBackgroundPicker(
   BuildContext context,
   WidgetRef ref,
-  Offset anchor,
 ) async {
   final strings = context.strings;
   final current = ref.read(preferencesProvider).value?.backgroundEffect ??
@@ -47,41 +47,18 @@ Future<void> showBackgroundPicker(
     await ref.read(preferencesProvider.notifier).setBackgroundEffect(level);
   }
 
-  if (MediaQuery.sizeOf(context).width >= 840) {
-    final result = await showMenu<BackgroundEffectLevel>(
-      context: context,
-      position: RelativeRect.fromLTRB(anchor.dx, anchor.dy, anchor.dx, anchor.dy),
-      items: [
-        for (final level in BackgroundEffectLevel.values)
-          PopupMenuItem(
-            value: level,
-            child: _OptionRow(
-              icon: level == current
-                  ? CupertinoIcons.checkmark_circle_fill
-                  : CupertinoIcons.circle,
-              label: backgroundEffectLabel(strings, level),
-              checked: level == current,
-            ),
-          ),
-      ],
-    );
-    if (result != null) await onPick(result);
-    return;
-  }
-
-  await showModalBottomSheet<void>(
-    context: context,
-    backgroundColor: Colors.transparent,
-    builder: (sheetCtx) => _ChoiceSheet(
+  await showCenterPopup<void>(
+    context,
+    child: _ChoiceSheet(
       title: strings.settingsBackground,
       options: [
         for (final level in BackgroundEffectLevel.values)
           _ChoiceOption(
-            label: backgroundEffectLabel(sheetCtx.strings, level),
+            label: backgroundEffectLabel(strings, level),
             checked: level == current,
             onTap: () async {
               await onPick(level);
-              if (sheetCtx.mounted) Navigator.of(sheetCtx).pop();
+              if (context.mounted) Navigator.of(context).pop();
             },
           ),
       ],
@@ -89,12 +66,10 @@ Future<void> showBackgroundPicker(
   );
 }
 
-/// 主题三态选择：桌面端锚点菜单，移动端毛玻璃底部弹层。
-/// [anchor] 为触发行的屏幕坐标（桌面端菜单定位用）。
+/// 主题三态选择：居中弹窗（桌面/移动一致）。
 Future<void> showThemePicker(
   BuildContext context,
   WidgetRef ref,
-  Offset anchor,
 ) async {
   final strings = context.strings;
   final current =
@@ -104,41 +79,18 @@ Future<void> showThemePicker(
     await ref.read(preferencesProvider.notifier).setThemeMode(mode);
   }
 
-  if (MediaQuery.sizeOf(context).width >= 840) {
-    final result = await showMenu<ThemeMode>(
-      context: context,
-      position: RelativeRect.fromLTRB(anchor.dx, anchor.dy, anchor.dx, anchor.dy),
-      items: [
-        for (final mode in ThemeMode.values)
-          PopupMenuItem(
-            value: mode,
-            child: _OptionRow(
-              icon: mode == current
-                  ? CupertinoIcons.checkmark_circle_fill
-                  : CupertinoIcons.circle,
-              label: themeLabel(strings, mode),
-              checked: mode == current,
-            ),
-          ),
-      ],
-    );
-    if (result != null) await onPick(result);
-    return;
-  }
-
-  await showModalBottomSheet<void>(
-    context: context,
-    backgroundColor: Colors.transparent,
-    builder: (sheetCtx) => _ChoiceSheet(
+  await showCenterPopup<void>(
+    context,
+    child: _ChoiceSheet(
       title: strings.settingsTheme,
       options: [
         for (final mode in ThemeMode.values)
           _ChoiceOption(
-            label: themeLabel(sheetCtx.strings, mode),
+            label: themeLabel(strings, mode),
             checked: mode == current,
             onTap: () async {
               await onPick(mode);
-              if (sheetCtx.mounted) Navigator.of(sheetCtx).pop();
+              if (context.mounted) Navigator.of(context).pop();
             },
           ),
       ],
@@ -146,11 +98,10 @@ Future<void> showThemePicker(
   );
 }
 
-/// 语言三态选择：桌面端锚点菜单，移动端毛玻璃底部弹层。
+/// 语言三态选择：居中弹窗（桌面/移动一致）。
 Future<void> showLanguagePicker(
   BuildContext context,
   WidgetRef ref,
-  Offset anchor,
 ) async {
   final strings = context.strings;
   final current = AppLanguage.fromLocale(Localizations.localeOf(context));
@@ -159,32 +110,9 @@ Future<void> showLanguagePicker(
     await ref.read(preferencesProvider.notifier).setLocale(lang.locale);
   }
 
-  if (MediaQuery.sizeOf(context).width >= 840) {
-    final result = await showMenu<AppLanguage>(
-      context: context,
-      position: RelativeRect.fromLTRB(anchor.dx, anchor.dy, anchor.dx, anchor.dy),
-      items: [
-        for (final lang in AppLanguage.values)
-          PopupMenuItem(
-            value: lang,
-            child: _OptionRow(
-              icon: lang == current
-                  ? CupertinoIcons.checkmark_circle_fill
-                  : CupertinoIcons.square,
-              label: lang.label,
-              checked: lang == current,
-            ),
-          ),
-      ],
-    );
-    if (result != null) await onPick(result);
-    return;
-  }
-
-  await showModalBottomSheet<void>(
-    context: context,
-    backgroundColor: Colors.transparent,
-    builder: (sheetCtx) => _ChoiceSheet(
+  await showCenterPopup<void>(
+    context,
+    child: _ChoiceSheet(
       title: strings.settingsLanguage,
       options: [
         for (final lang in AppLanguage.values)
@@ -193,7 +121,7 @@ Future<void> showLanguagePicker(
             checked: lang == current,
             onTap: () async {
               await onPick(lang);
-              if (sheetCtx.mounted) Navigator.of(sheetCtx).pop();
+              if (context.mounted) Navigator.of(context).pop();
             },
           ),
       ],
@@ -201,37 +129,7 @@ Future<void> showLanguagePicker(
   );
 }
 
-/// 桌面端菜单行：图标 + 文案。
-class _OptionRow extends StatelessWidget {
-  const _OptionRow({
-    required this.icon,
-    required this.label,
-    required this.checked,
-  });
-
-  final IconData icon;
-  final String label;
-  final bool checked;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(
-          icon,
-          size: 18,
-          color:
-              checked ? theme.colorScheme.primary : theme.colorScheme.onSecondary,
-        ),
-        const SizedBox(width: AppTokens.spaceS),
-        Text(label),
-      ],
-    );
-  }
-}
-
+/// 选择弹窗：窗口居中展示（桌面/移动一致）。
 class _ChoiceOption {
   const _ChoiceOption({
     required this.label,
@@ -244,7 +142,7 @@ class _ChoiceOption {
   final VoidCallback onTap;
 }
 
-/// 移动端选择弹层：自下而上 + 毛玻璃（对照需求「语言弹窗」）。
+/// 居中选择弹窗：毛玻璃容器承载选项列表。
 class _ChoiceSheet extends StatelessWidget {
   const _ChoiceSheet({required this.title, required this.options});
 

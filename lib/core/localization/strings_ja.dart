@@ -41,9 +41,6 @@ class AppStringsJa extends AppStrings {
   String get tabAll => 'すべて';
 
   @override
-  String get tabAlbums => 'アルバム';
-
-  @override
   String get tabArtists => 'アーティスト';
 
   @override
@@ -125,6 +122,21 @@ class AppStringsJa extends AppStrings {
   String get playerNoLyrics => '歌詞はありません';
 
   @override
+  String get lyricsAdd => '歌詞を追加';
+
+  @override
+  String get lyricsEdit => '歌詞を編集';
+
+  @override
+  String get lyricsHint => 'LRC 歌詞テキストを貼り付け。例：[00:12.00] 歌詞';
+
+  @override
+  String get lyricsInvalid => '有効な歌詞行が見つかりません';
+
+  @override
+  String get lyricsBackToPlayer => 'プレイヤーに戻る';
+
+  @override
   String get playerQueue => '再生キュー';
 
   @override
@@ -141,6 +153,18 @@ class AppStringsJa extends AppStrings {
 
   @override
   String get playerShuffle => 'シャッフル';
+
+  @override
+  String get playerVolume => '音量';
+
+  @override
+  String get playerSleepTimer => '睡眠タイマー';
+
+  @override
+  String get playerSleepOff => 'オフ';
+
+  @override
+  String sleepTimerMinutes(int minutes) => '$minutes分';
 
   @override
   String get miniPrevious => '前の曲';

@@ -7,10 +7,10 @@ abstract interface class MediaRepository {
   /// 全部歌曲（按导入时间升序）。上层自行做分类/分组/搜索。
   Stream<List<Song>> watchAllSongs();
 
-  /// 切换收藏状态。
+  /// 切换喜欢状态。
   Future<void> toggleFavorite(int id, bool favorite);
 
-  /// 批量设置收藏状态。
+  /// 批量设置喜欢状态。
   Future<void> batchSetFavorite(List<int> ids, bool favorite);
 
   /// 批量删除歌曲：songs_tags / queue_items / lyrics_cache 级联清理。

@@ -30,7 +30,6 @@ class _PlaylistPageState extends ConsumerState<PlaylistPage> {
   /// 是否处于批量编辑（多选）模式。
   bool _selecting = false;
   final Set<int> _selected = {};
-  final GlobalKey _batchMenuKey = GlobalKey();
 
   @override
   void dispose() {
@@ -87,10 +86,7 @@ class _PlaylistPageState extends ConsumerState<PlaylistPage> {
   Future<void> _openBatchMenu() async {
     final songs = _selectedSongs();
     if (songs.isEmpty) return;
-    final box = _batchMenuKey.currentContext?.findRenderObject();
-    final center =
-        box is RenderBox ? box.localToGlobal(box.size.center(Offset.zero)) : Offset.zero;
-    await showBatchSongMenu(context, ref, songs: songs, anchor: center);
+    await showBatchSongMenu(context, ref, songs: songs);
     if (!mounted) return;
     // 删除可能已移除部分歌曲，清理失效的选中项。
     final aliveIds = {for (final s in _allSongs()) s.id};
@@ -106,8 +102,8 @@ class _PlaylistPageState extends ConsumerState<PlaylistPage> {
     await ref.read(mediaRepositoryProvider).markPlayed(song.id);
   }
 
-  void _openSongMenu(Song song, Offset anchor) =>
-      showSongMenu(context, ref, song: song, anchor: anchor);
+  void _openSongMenu(Song song) =>
+      showSongMenu(context, ref, song: song);
 
   Future<void> _openTagFilter() async {
     final selected = await showTagFilterSheet(
@@ -175,7 +171,6 @@ class _PlaylistPageState extends ConsumerState<PlaylistPage> {
                   onPressed: () => _toggleSelectAll(visibleSongs),
                 ),
                 IconButton(
-                  key: _batchMenuKey,
                   icon: const Icon(CupertinoIcons.ellipsis),
                   tooltip: strings.batchEdit,
                   onPressed: _selected.isEmpty ? null : _openBatchMenu,
@@ -189,11 +184,6 @@ class _PlaylistPageState extends ConsumerState<PlaylistPage> {
                     _searching = !_searching;
                     if (!_searching) _searchCtrl.clear();
                   }),
-                ),
-                IconButton(
-                  icon: const Icon(CupertinoIcons.add),
-                  tooltip: strings.newTag,
-                  onPressed: () => showCreateTagDialog(context, ref),
                 ),
                 IconButton(
                   icon: const Icon(CupertinoIcons.square_list),
@@ -258,7 +248,6 @@ class _PlaylistPageState extends ConsumerState<PlaylistPage> {
   Widget _buildCategoryBar(AppStrings strings) {
     final items = [
       (PlaylistCategory.all, strings.tabAll),
-      (PlaylistCategory.albums, strings.tabAlbums),
       (PlaylistCategory.artists, strings.tabArtists),
       (PlaylistCategory.favorites, strings.tabFavorites),
       (PlaylistCategory.recent, strings.tabRecent),
@@ -310,7 +299,7 @@ class _PlaylistPageState extends ConsumerState<PlaylistPage> {
             onTap: () => _play(song, tracks),
             onMore: _selecting
                 ? null
-                : (anchor) => _openSongMenu(song, anchor),
+                : () => _openSongMenu(song),
             selecting: _selecting,
             selected: _selected.contains(song.id),
             onSelect: () => _toggleSelect(song.id),

@@ -23,7 +23,6 @@ abstract class AppStrings {
   String get libraryTitle;
   String get search;
   String get tabAll;
-  String get tabAlbums;
   String get tabArtists;
   String get tabFavorites;
   String get tabRecent;
@@ -51,12 +50,21 @@ abstract class AppStrings {
   String get playerUpNext;
   String get playerLyrics;
   String get playerNoLyrics;
+  String get lyricsAdd;
+  String get lyricsEdit;
+  String get lyricsHint;
+  String get lyricsInvalid;
+  String get lyricsBackToPlayer;
   String get playerQueue;
   String get playerComingSoon;
   String get playerRepeatOff;
   String get playerRepeatAll;
   String get playerRepeatOne;
   String get playerShuffle;
+  String get playerVolume;
+  String get playerSleepTimer;
+  String get playerSleepOff;
+  String sleepTimerMinutes(int minutes);
 
   // ---- 迷你播放条 ----
   String get miniPrevious;

@@ -7,9 +7,9 @@ import '../../core/theme/app_tokens.dart';
 import '../../data/database/app_database.dart';
 import '../pages/playlist/playlist_data.dart';
 
-/// 歌曲行：封面占位、歌名/歌手/时长、收藏红心、播放高亮+均衡动画、⋯菜单。
-/// 交互：点按播放；长按（移动）/鼠标右键（桌面）/「⋯」弹出上下文菜单；
-/// 桌面端悬停高亮。批量编辑模式下显示左侧选择圈，点按切换选中。
+/// 歌曲行：封面占位、歌名/歌手/时长、喜欢红心、播放高亮+均衡动画、⋯菜单。
+/// 交互：点按播放；长按（移动）/鼠标右键（桌面）/「⋯」弹出上下文菜单
+/// （统一窗口居中弹框）；桌面端悬停高亮。批量编辑模式下显示左侧选择圈，点按切换选中。
 class SongTile extends StatefulWidget {
   const SongTile({
     super.key,
@@ -26,8 +26,8 @@ class SongTile extends StatefulWidget {
   final bool isPlaying;
   final VoidCallback onTap;
 
-  /// 弹出歌曲菜单，anchor 为桌面端菜单定位点；批量编辑模式下为 null。
-  final void Function(Offset anchor)? onMore;
+  /// 弹出歌曲菜单；批量编辑模式下为 null。
+  final VoidCallback? onMore;
 
   /// 是否处于批量编辑模式（显示选择圈、隐藏行内菜单）。
   final bool selecting;
@@ -45,13 +45,7 @@ class SongTile extends StatefulWidget {
 class _SongTileState extends State<SongTile> {
   bool _hovered = false;
 
-  void _openMoreAt(Offset position) => widget.onMore?.call(position);
-
-  void _openMore() {
-    final box = context.findRenderObject();
-    final center = box is RenderBox ? box.localToGlobal(box.size.center(Offset.zero)) : Offset.zero;
-    _openMoreAt(center);
-  }
+  void _openMore() => widget.onMore?.call();
 
   @override
   Widget build(BuildContext context) {
@@ -71,18 +65,19 @@ class _SongTileState extends State<SongTile> {
         behavior: HitTestBehavior.opaque,
         onTap: selecting ? widget.onSelect : widget.onTap,
         onLongPress: selecting ? null : _openMore,
-        onSecondaryTapDown: selecting
-            ? null
-            : (d) => _openMoreAt(d.globalPosition),
+        onSecondaryTapDown: selecting ? null : (_) => _openMore(),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 150),
           curve: Curves.easeOut,
           color: selected
               ? theme.colorScheme.primary.withValues(alpha: 0.08)
               : _hovered
-                  ? theme.colorScheme.onSurface.withValues(alpha: 0.06)
-                  : Colors.transparent,
-          padding: const EdgeInsets.symmetric(horizontal: AppTokens.spaceM, vertical: AppTokens.spaceS),
+              ? theme.colorScheme.onSurface.withValues(alpha: 0.06)
+              : Colors.transparent,
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppTokens.spaceM,
+            vertical: AppTokens.spaceS,
+          ),
           child: Row(
             children: [
               if (selecting) ...[
@@ -125,8 +120,9 @@ class _SongTileState extends State<SongTile> {
                       subtitle,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodySmall
-                          ?.copyWith(color: theme.colorScheme.onSecondary),
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSecondary,
+                      ),
                     ),
                   ],
                 ),
@@ -158,11 +154,11 @@ class _SelectMark extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Icon(
-      selected
-          ? CupertinoIcons.checkmark_circle_fill
-          : CupertinoIcons.circle,
+      selected ? CupertinoIcons.checkmark_circle_fill : CupertinoIcons.circle,
       size: 22,
-      color: selected ? theme.colorScheme.primary : theme.colorScheme.onSecondary,
+      color: selected
+          ? theme.colorScheme.primary
+          : theme.colorScheme.onSecondary,
     );
   }
 }
@@ -215,12 +211,16 @@ class _CoverArt extends StatelessWidget {
         ),
         borderRadius: BorderRadius.circular(AppTokens.radiusM),
       ),
-      child: const Icon(CupertinoIcons.music_note, color: Colors.white, size: 22),
+      child: const Icon(
+        CupertinoIcons.music_note,
+        color: Colors.white,
+        size: 22,
+      ),
     );
   }
 }
 
-/// 收藏红心：红心弹跳入场（AnimatedScale）。
+/// 喜欢红心：红心弹跳入场（AnimatedScale）。
 class _FavoriteHeart extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
