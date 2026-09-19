@@ -8,6 +8,7 @@ import '../../../core/localization/localizations_delegate.dart';
 import '../../../core/platform/device_type.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../services/preferences/preferences_controller.dart';
+import '../../scaffold/content_bottom_inset.dart';
 import 'settings_sheets.dart';
 
 /// 设置页面：主题、减弱动效、语言（中/英/日）、默认音量、关于。
@@ -36,7 +37,10 @@ class SettingsPage extends ConsumerWidget {
         DeviceType.desktop;
 
     final body = ListView(
-      padding: const EdgeInsets.only(bottom: AppTokens.spaceL),
+      // 底部预留悬浮玻璃（迷你条+底栏）高度，最后一项可滚到玻璃之上。
+      padding: EdgeInsets.only(
+        bottom: AppTokens.spaceL + ContentBottomInset.of(context),
+      ),
       children: [
         _SectionLabel(strings.settingsAppearance),
         _SettingsTile(

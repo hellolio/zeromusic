@@ -9,6 +9,7 @@ import '../../../services/import/import_providers.dart';
 import '../../../services/import/import_source.dart';
 import '../../../services/import/import_task.dart';
 import '../../components/top_notification.dart';
+import '../../scaffold/content_bottom_inset.dart';
 import 'import_source_card.dart';
 import 'import_source_sheet.dart';
 import 'import_task_tile.dart';
@@ -101,7 +102,10 @@ class _ImportPageState extends ConsumerState<ImportPage> {
       key: _pageKey,
       appBar: AppBar(title: Text(strings.importTitle)),
       body: ListView(
-        padding: const EdgeInsets.only(bottom: AppTokens.spaceL),
+        // 底部预留悬浮玻璃（迷你条+底栏）高度，最后一项可滚到玻璃之上。
+        padding: EdgeInsets.only(
+          bottom: AppTokens.spaceL + ContentBottomInset.of(context),
+        ),
         children: [
           _SectionLabel(strings.importSourcesHeader),
           _buildSourceGrid(context, ref, sources, device),

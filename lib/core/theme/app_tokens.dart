@@ -9,6 +9,13 @@ abstract final class AppTokens {
   static const double spaceL = 24;
   static const double spaceXl = 32;
 
+  // ---- 移动端底部控件 ----
+  /// 移动端底栏高度。
+  static const double mobileBottomControlHeight = 62;
+
+  /// 迷你播放条略小于底栏，作为轻量的播放状态入口。
+  static const double mobileMiniPlayerHeight = 54;
+
   // ---- 圆角 ----
   static const double radiusS = 8;
   static const double radiusM = 12;

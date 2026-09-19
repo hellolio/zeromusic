@@ -16,6 +16,7 @@ class SongTile extends StatefulWidget {
     required this.song,
     required this.isPlaying,
     required this.onTap,
+    this.isAudible = false,
     this.onMore,
     this.selecting = false,
     this.selected = false,
@@ -23,8 +24,13 @@ class SongTile extends StatefulWidget {
   });
 
   final Song song;
+
+  /// 是否为当前播放曲目（歌名高亮，与是否真的在出声无关）。
   final bool isPlaying;
   final VoidCallback onTap;
+
+  /// 引擎是否真的在播放（暂停时 false → 均衡动画停止）。
+  final bool isAudible;
 
   /// 弹出歌曲菜单；批量编辑模式下为 null。
   final VoidCallback? onMore;
@@ -111,7 +117,10 @@ class _SongTileState extends State<SongTile> {
                         ],
                         if (widget.isPlaying) ...[
                           const SizedBox(width: AppTokens.spaceS),
-                          const _Equalizer(isPlaying: true),
+                          _Equalizer(
+                            key: ValueKey('equalizer-${song.id}'),
+                            isPlaying: widget.isAudible,
+                          ),
                         ],
                       ],
                     ),
@@ -239,7 +248,7 @@ class _FavoriteHeart extends StatelessWidget {
 
 /// 均衡波形象征动画：播放中三根小柱上下跳动；减弱动效时静止显示。
 class _Equalizer extends StatefulWidget {
-  const _Equalizer({required this.isPlaying});
+  const _Equalizer({super.key, required this.isPlaying});
 
   final bool isPlaying;
 

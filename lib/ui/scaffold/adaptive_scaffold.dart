@@ -5,10 +5,13 @@ import '../../core/anim/app_curves.dart';
 import '../../core/anim/page_transitions.dart';
 import '../../core/localization/app_strings.dart';
 import '../../core/platform/device_type.dart';
+import '../../core/theme/app_tokens.dart';
 import '../../services/audio/audio_controller.dart';
 import '../mini_player/mini_player.dart';
 import '../pages/import/import_page.dart';
 import 'app_side_bar.dart';
+import 'content_bottom_inset.dart';
+import 'glass_nav_bar.dart';
 import 'sidebar_inset.dart';
 import '../pages/player/player_page.dart';
 import '../pages/playlist/playlist_page.dart';
@@ -39,10 +42,10 @@ class _AdaptiveScaffoldState extends ConsumerState<AdaptiveScaffold> {
     super.dispose();
   }
 
-  late final List<Widget> _mobilePages = const [
-    PlaylistPage(),
-    ImportPage(),
-    SettingsPage(),
+  late final List<Widget> _mobilePages = [
+    PlaylistPage(onSwipeNext: _advanceFromPlaylist),
+    const ImportPage(),
+    const SettingsPage(),
   ];
 
   late final List<Widget> _desktopPages = const [
@@ -61,6 +64,19 @@ class _AdaptiveScaffoldState extends ConsumerState<AdaptiveScaffold> {
     );
   }
 
+  /// 播放列表「最近播放」页继续左滑 → 交棒进入导入页（仅当正处于播放列表且未在滚动）。
+  void _advanceFromPlaylist() {
+    if (_index != 0) return;
+    if (!_pageController.hasClients) return;
+    if (_pageController.position.isScrollingNotifier.value) return;
+    setState(() => _index = 1);
+    _pageController.animateToPage(
+      1,
+      duration: AppCurves.pageTransition,
+      curve: AppCurves.standard,
+    );
+  }
+
   /// 移动端：手势滑动切页 → 同步底栏高亮。
   void _onPageChanged(int i) {
     setState(() => _index = i);
@@ -73,11 +89,15 @@ class _AdaptiveScaffoldState extends ConsumerState<AdaptiveScaffold> {
       PageRouteBuilder(
         pageBuilder: (_, _, _) => const PlayerPage(),
         transitionsBuilder: (_, animation, _, child) {
-          final curved =
-              CurvedAnimation(parent: animation, curve: AppCurves.standard);
+          final curved = CurvedAnimation(
+            parent: animation,
+            curve: AppCurves.standard,
+          );
           return SlideTransition(
-            position:
-                Tween(begin: const Offset(0, 1), end: Offset.zero).animate(curved),
+            position: Tween(
+              begin: const Offset(0, 1),
+              end: Offset.zero,
+            ).animate(curved),
             child: FadeTransition(opacity: curved, child: child),
           );
         },
@@ -105,40 +125,78 @@ class _AdaptiveScaffoldState extends ConsumerState<AdaptiveScaffold> {
 
   Widget _buildMobile(BuildContext context, BoxConstraints constraints) {
     final strings = context.strings;
+    final hasTrack = ref.watch(audioControllerProvider).hasTrack;
+    // 底部悬浮玻璃占用的高度（迷你条 + 间隙 + 底栏），供页面滚动内容预留。
+    final overlayHeight = AppTokens.spaceS +
+        AppTokens.mobileMiniPlayerHeight +
+        AppTokens.spaceS +
+        AppTokens.mobileBottomControlHeight;
     return Scaffold(
       body: SafeArea(
         top: false,
-        child: Column(
-          children: [
-            Expanded(
-              child: PageView(
-                controller: _pageController,
-                onPageChanged: _onPageChanged,
-                children: _mobilePages,
+        child: ContentBottomInset(
+          // 有迷你条时为整段悬浮高度，仅底栏时只预留底栏高度，再加底部呼吸。
+          inset: (hasTrack ? overlayHeight : AppTokens.spaceS +
+                  AppTokens.mobileBottomControlHeight) +
+              AppTokens.spaceM,
+          child: Stack(
+            children: [
+              // 内容区：铺满整屏，滚动到迷你条/底栏之后，让液态玻璃透出背后的内容。
+              Positioned.fill(
+                child: PageView(
+                  controller: _pageController,
+                  onPageChanged: _onPageChanged,
+                  children: _mobilePages,
+                ),
               ),
-            ),
-            // 移动端：点按迷你条推入全屏播放页（进入后迷你条随路由覆盖而隐藏）。
-            MiniPlayer(
-              deviceType: DeviceType.mobile,
-              onTap: _pushPlayer,
-              onTogglePlay: () =>
-                  ref.read(audioControllerProvider.notifier).togglePlay(),
-              onNext: () =>
-                  ref.read(audioControllerProvider.notifier).next(),
-              onPrev: () =>
-                  ref.read(audioControllerProvider.notifier).previous(),
-            ),
-          ],
+              // 底部悬浮控件：迷你播放条 + 液态玻璃底栏（覆盖在内容之上）。
+              // 左右留边距，胶囊不接触屏幕边缘。
+              Positioned(
+                left: AppTokens.spaceM,
+                right: AppTokens.spaceM,
+                bottom: AppTokens.spaceS,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    MiniPlayer(
+                      deviceType: DeviceType.mobile,
+                      onTap: _pushPlayer,
+                      onTogglePlay: () => ref
+                          .read(audioControllerProvider.notifier)
+                          .togglePlay(),
+                      onNext: () =>
+                          ref.read(audioControllerProvider.notifier).next(),
+                      onPrev: () =>
+                          ref.read(audioControllerProvider.notifier).previous(),
+                    ),
+                    const SizedBox(height: AppTokens.spaceS),
+                    GlassNavBar(
+                      selectedIndex: _index,
+                      onSelected: _onNavSelected,
+                      destinations: [
+                        GlassNavDestination(
+                          icon: Icons.library_music_outlined,
+                          selectedIcon: Icons.library_music,
+                          label: strings.navPlaylist,
+                        ),
+                        GlassNavDestination(
+                          icon: Icons.download_outlined,
+                          selectedIcon: Icons.download,
+                          label: strings.navImport,
+                        ),
+                        GlassNavDestination(
+                          icon: Icons.settings_outlined,
+                          selectedIcon: Icons.settings,
+                          label: strings.navSettings,
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
-      ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _index,
-        onDestinationSelected: _onNavSelected,
-        destinations: [
-          NavigationDestination(icon: const Icon(Icons.library_music_outlined), selectedIcon: const Icon(Icons.library_music), label: strings.navPlaylist),
-          NavigationDestination(icon: const Icon(Icons.download_outlined), selectedIcon: const Icon(Icons.download), label: strings.navImport),
-          NavigationDestination(icon: const Icon(Icons.settings_outlined), selectedIcon: const Icon(Icons.settings), label: strings.navSettings),
-        ],
       ),
     );
   }

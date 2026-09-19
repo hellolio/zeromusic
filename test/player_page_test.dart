@@ -235,6 +235,23 @@ void main() {
     expect(fraction, closeTo(0.75, 0.05));
   });
 
+  testWidgets('TC-07b 点击进度条（不滑动）直接 seek', (tester) async {
+    final engine = await pumpPlayer(tester);
+    engine.emitDuration(const Duration(seconds: 200));
+    await tester.pumpAndSettle();
+
+    final rect = tester.getRect(find.byKey(const ValueKey('player-seek-bar')));
+    await tester.tapAt(
+      Offset(rect.left + rect.width * 0.75, rect.center.dy),
+    );
+    await tester.pumpAndSettle();
+
+    expect(engine.seekCount, 1);
+    expect(engine.lastSeek, isNotNull);
+    final fraction = engine.lastSeek!.inMilliseconds / 200000;
+    expect(fraction, closeTo(0.75, 0.05));
+  });
+
   testWidgets('TC-08 播放模式循环切换与图标', (tester) async {
     await pumpPlayer(tester);
 
@@ -306,6 +323,21 @@ void main() {
     expect(find.byType(PlayerPage), findsNothing);
   });
 
+  testWidgets('TC-17b 桌面端：收起条为倒三角（点击区更大）', (tester) async {
+    await pumpPlayer(tester);
+
+    // 桌面端渲染倒三角而非细横线。
+    expect(
+      find.byKey(const ValueKey('player-close-triangle')),
+      findsOneWidget,
+    );
+
+    // 倒三角点击区更高（≥ 24），明显大于移动端细横线。
+    final rect =
+        tester.getRect(find.byKey(const ValueKey('player-close-bar')));
+    expect(rect.height, greaterThanOrEqualTo(24));
+  });
+
   testWidgets('TC-18 移动端：全屏路由显示收起条，点按关闭返回', (tester) async {
     await pumpApp(
       tester,
@@ -324,6 +356,12 @@ void main() {
 
     expect(find.byType(PlayerPage), findsOneWidget);
     expect(find.byKey(const ValueKey('player-close-bar')), findsOneWidget);
+
+    // 移动端保持细横线，不倒三角。
+    expect(
+      find.byKey(const ValueKey('player-close-triangle')),
+      findsNothing,
+    );
 
     await tester.tap(find.byKey(const ValueKey('player-close-bar')));
     await tester.pumpAndSettle();
@@ -410,7 +448,6 @@ void main() {
       ),
     );
     expect(favButton.onPressed, isNull);
-    expect(favButton.onPressed, isNull);
 
     // 定时 / 音量按钮存在且已启用。
     expect(find.byKey(const ValueKey('player-timer-button')), findsOneWidget);
@@ -469,14 +506,19 @@ void main() {
     expect(inPlayer(find.byIcon(CupertinoIcons.moon_zzz_fill)), findsOneWidget);
   });
 
-  testWidgets('播放页音量：点按钮弹滑杆，拖动联动偏好与引擎', (tester) async {
+  testWidgets('播放页音量：点按钮弹出竖向滑杆，拖动联动偏好与引擎', (tester) async {
     final engine = await pumpPlayer(tester);
 
     await tester.tap(find.byKey(const ValueKey('player-volume-button')));
     await tester.pumpAndSettle();
 
-    // 弹窗标题 + 滑杆出现。
-    expect(find.text('Volume'), findsOneWidget);
+    // 竖向音量窗口出现（锚定在按钮上方，非居中弹窗）。
+    expect(
+      find.byKey(const ValueKey('player-volume-popover')),
+      findsOneWidget,
+    );
+    final slider = find.byKey(const ValueKey('player-volume-slider'));
+    expect(slider, findsOneWidget);
     expect(find.byType(Slider), findsOneWidget);
 
     final container = ProviderScope.containerOf(
@@ -485,14 +527,28 @@ void main() {
     final before =
         container.read(preferencesProvider).value?.defaultVolume ?? 1.0;
 
-    await tester.drag(find.byType(Slider), const Offset(-200, 0),
-        warnIfMissed: false);
+    // 竖向滑杆：向下拖动 = 音量降低。
+    await tester.drag(slider, const Offset(0, 140), warnIfMissed: false);
     await tester.pumpAndSettle();
 
     final after =
         container.read(preferencesProvider).value?.defaultVolume ?? 1.0;
     expect(after, lessThan(before));
     expect(engine.lastVolume!, closeTo(after, 1e-9));
+  });
+
+  testWidgets('播放页音量：竖向弹窗宽度紧凑（无多余留白）', (tester) async {
+    await pumpPlayer(tester);
+
+    await tester.tap(find.byKey(const ValueKey('player-volume-button')));
+    await tester.pumpAndSettle();
+
+    final rect = tester.getRect(
+      find.byKey(const ValueKey('player-volume-popover')),
+    );
+    // 竖向窗口：明显窄于旧版（116），且不至于过窄不可用。
+    expect(rect.width, lessThan(90));
+    expect(rect.width, greaterThan(40));
   });
 
   testWidgets('TC-20 按钮布局轮换：队列上移至传输行，音量/歌词在底行', (tester) async {
@@ -574,6 +630,56 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('lyrics-toggle-player')), findsNothing);
     expect(find.byKey(const ValueKey('player-lyrics-button')), findsOneWidget);
+  });
+
+  /// 移动端视口进入全屏播放页（默认队列 [t1, t2]）。
+  Future<void> pumpMobilePlayer(WidgetTester tester) async {
+    await pumpApp(
+      tester,
+      engine: FakeAudioEngine(),
+      viewport: const Size(600, 900),
+      overrides: fakeDataLayerOverrides(FakeDataLayer(seed: const [])),
+    );
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(AdaptiveScaffold)),
+    );
+    container.read(audioControllerProvider.notifier).playQueue(const [t1, t2]);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byType(MiniPlayer));
+    await tester.pumpAndSettle();
+  }
+
+  testWidgets('移动端播放页：下拉拖动跟手（1:1 位移）', (tester) async {
+    await pumpMobilePlayer(tester);
+
+    final title = inPlayer(find.text('夜曲'));
+    final g = await tester.startGesture(const Offset(300, 500));
+    await g.moveBy(const Offset(0, 30)); // 越过触摸 slop 建立手势
+    await tester.pump();
+    final before = tester.getCenter(title).dy;
+    expect(before, greaterThan(0)); // 已开始跟手下移
+
+    await g.moveBy(const Offset(0, 40));
+    await tester.pump();
+    // 后续增量 1:1 跟手。
+    expect(tester.getCenter(title).dy - before, closeTo(40, 2));
+
+    await g.up();
+    await tester.pumpAndSettle();
+    expect(find.byType(PlayerPage), findsOneWidget);
+  });
+
+  testWidgets('移动端播放页：下拉快速甩动退出并返回', (tester) async {
+    await pumpMobilePlayer(tester);
+
+    await tester.fling(
+      find.byType(PlayerPage),
+      const Offset(0, 300),
+      1200,
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byType(PlayerPage), findsNothing);
   });
 }
 

@@ -1,7 +1,8 @@
 import 'dart:io' show File;
 
 import 'package:flutter/cupertino.dart';
-import 'package:flutter/gestures.dart' show PointerScrollEvent;
+import 'package:flutter/gestures.dart'
+    show DragStartBehavior, PointerScrollEvent;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -95,7 +96,6 @@ class _CapsuleData {
     required this.title,
     required this.subtitle,
     required this.coverPath,
-    required this.fraction,
     required this.queue,
     required this.currentIndex,
     required this.hasNext,
@@ -107,7 +107,6 @@ class _CapsuleData {
       title: state.currentTrack?.title ?? '',
       subtitle: state.currentTrack?.subtitle ?? '',
       coverPath: state.currentTrack?.coverPath,
-      fraction: _fraction(state),
       queue: state.queue,
       currentIndex: state.currentIndex,
       hasNext: state.hasNext,
@@ -118,17 +117,9 @@ class _CapsuleData {
   final String title;
   final String subtitle;
   final String? coverPath;
-  final double fraction;
   final List<Track> queue;
   final int currentIndex;
   final bool hasNext;
-
-  /// 播放进度比例（0..1），时长未知时为 0。
-  static double _fraction(PlaybackState state) {
-    final ms = state.duration.inMilliseconds;
-    if (ms <= 0) return 0;
-    return (state.position.inMilliseconds / ms).clamp(0.0, 1.0);
-  }
 
   /// 生成展示指定曲目的副本（用于滑动 peek 卡片）。
   _CapsuleData withTrack(Track track) {
@@ -137,7 +128,6 @@ class _CapsuleData {
       title: track.title,
       subtitle: track.subtitle,
       coverPath: track.coverPath,
-      fraction: fraction,
       queue: queue,
       currentIndex: currentIndex,
       hasNext: hasNext,
@@ -206,38 +196,6 @@ class _FallbackCover extends StatelessWidget {
   }
 }
 
-/// 底部 2px 细进度条：随播放进度增长（需求 4.4）。
-class _ProgressBar extends StatelessWidget {
-  const _ProgressBar({required this.fraction});
-
-  final double fraction;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(1),
-      child: SizedBox(
-        height: 2,
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            ColoredBox(color: scheme.onSecondary.withValues(alpha: 0.25)),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: FractionallySizedBox(
-                key: const ValueKey('mini-player-progress'),
-                widthFactor: fraction.clamp(0.0, 1.0),
-                child: ColoredBox(color: scheme.primary),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 /// 播放/暂停按钮（图标 AnimatedSwitcher 动画）。
 class _PlayPauseButton extends StatelessWidget {
   const _PlayPauseButton({required this.isPlaying, required this.onPressed});
@@ -248,6 +206,8 @@ class _PlayPauseButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return IconButton(
+      constraints: const BoxConstraints.tightFor(width: 40, height: 40),
+      padding: const EdgeInsets.all(6),
       onPressed: onPressed,
       icon: AnimatedSwitcher(
         duration: AppCurves.quickMotion,
@@ -263,15 +223,33 @@ class _PlayPauseButton extends StatelessWidget {
   }
 }
 
+/// 下一曲按钮（移动端：直接点按切歌，左右滑动切歌不受影响）。
+class _NextButton extends StatelessWidget {
+  const _NextButton({required this.onPressed});
+
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      key: const ValueKey('mini-player-next'),
+      constraints: const BoxConstraints.tightFor(width: 40, height: 40),
+      padding: const EdgeInsets.all(6),
+      onPressed: onPressed,
+      icon: const Icon(Icons.skip_next_rounded, size: 26),
+    );
+  }
+}
+
 // ---------------------------------------------------------------------------
-// 移动端：可横滑整卡切歌的水滴胶囊
+// 移动端：可横滑内容切歌的水滴胶囊
 // ---------------------------------------------------------------------------
 
-/// 卡片横向位移动画阶段。
+/// 内容横向位移动画阶段。
 enum _Phase { idle, out, slideIn, spring }
 
-/// 移动端胶囊：左右滑动整卡滑出/滑入切换上一首/下一首。
-/// 拖动跟手 → 未过阈值回弹（spring）→ 过阈值滑出后换曲、再从对侧滑入（回弹）。
+/// 移动端胶囊：玻璃胶囊本体固定不动，仅内部内容左右滑动切换上一首/下一首。
+/// 拖动跟手 → 未过阈值回弹（spring）→ 过阈值内容滑出后换曲、再从对侧滑入（回弹）。
 class _SwipeableCapsule extends StatefulWidget {
   const _SwipeableCapsule({
     required this.data,
@@ -302,7 +280,7 @@ class _SwipeableCapsuleState extends State<_SwipeableCapsule>
   /// 换歌滑出距离。
   static const double _exitDistance = 220;
 
-  static const double _coverSize = 44;
+  static const double _coverSize = 38;
 
   double get _pickRadius => (_coverSize + 2 * AppTokens.spaceXs) / 2;
 
@@ -370,6 +348,12 @@ class _SwipeableCapsuleState extends State<_SwipeableCapsule>
     }
     final toNext = vx < 0 || (vx == 0 && _offset < 0);
     _doSwap(toNext: toNext);
+  }
+
+  void _onHorizontalDragCancel() {
+    // 手势被取消（如被其它手势打断）：回到原位，避免内容停留在半途。
+    if (_animating) return;
+    _springBack();
   }
 
   void _onVerticalDragEnd(DragEndDetails details) {
@@ -459,47 +443,56 @@ class _SwipeableCapsuleState extends State<_SwipeableCapsule>
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: widget.onTap,
+      // down：把越过 slop 前的位移一并作为首次 update 派发，让内容更跟手。
+      dragStartBehavior: DragStartBehavior.down,
       onHorizontalDragStart: (_) {},
       onHorizontalDragUpdate: _onHorizontalDragUpdate,
       onHorizontalDragEnd: _onHorizontalDragEnd,
+      onHorizontalDragCancel: _onHorizontalDragCancel,
       onVerticalDragEnd: _onVerticalDragEnd,
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(_pickRadius),
-        child: Stack(
-          clipBehavior: Clip.hardEdge,
-          children: [
-            // 后层邻曲 peek（手势拖动/动画中显示）。
-            if (_dir != 0) _buildBehindCard(data),
-            Transform.translate(
-              offset: Offset(_offset, 0),
-              child: _miniCard(data),
+      child: SizedBox(
+        height: AppTokens.mobileMiniPlayerHeight,
+        // 玻璃胶囊本体固定不动，仅内部内容左右滑动。
+        child: GlassOverlay(
+          blur: 8,
+          radius: AppTokens.radiusPill,
+          child: ClipRRect(
+            // 全胶囊圆角：圆角直径 = 条高（radiusPill 会被 RRect 自动钳制为高的一半）。
+            borderRadius: BorderRadius.circular(AppTokens.radiusPill),
+            child: Stack(
+              clipBehavior: Clip.hardEdge,
+              children: [
+                // 后层邻曲内容 peek（手势拖动/动画中显示）。
+                if (_dir != 0) _buildBehindContent(data),
+                Transform.translate(
+                  offset: Offset(_offset, 0),
+                  child: _miniContent(data),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildBehindCard(_CapsuleData data) {
+  Widget _buildBehindContent(_CapsuleData data) {
     final behind = data.adjacent(_dir);
     if (behind == null) return const SizedBox.shrink();
     return Transform.translate(
       // 滞后跟手，形成层叠 peek。
       offset: Offset(_offset * 0.55, 0),
-      child: Opacity(opacity: 0.85, child: _miniCard(data.withTrack(behind))),
+      child: Opacity(opacity: 0.85, child: _miniContent(data.withTrack(behind))),
     );
   }
 
-  Widget _miniCard(_CapsuleData data) {
-    return GlassOverlay(
-      blur: 30,
-      radius: _pickRadius,
-      padding: EdgeInsets.symmetric(
-        horizontal: _pickRadius,
-        vertical: AppTokens.spaceXs,
-      ),
+  /// 胶囊内的内容（封面/歌名/控制），由外层玻璃框固定、内容横向滑动。
+  Widget _miniContent(_CapsuleData data) {
+    return Padding(
+      padding: EdgeInsets.symmetric(horizontal: _pickRadius, vertical: 3),
       child: Column(
-        mainAxisSize: MainAxisSize.min,
+        mainAxisSize: MainAxisSize.max,
+        mainAxisAlignment: MainAxisAlignment.center,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Row(
@@ -537,10 +530,10 @@ class _SwipeableCapsuleState extends State<_SwipeableCapsule>
                 isPlaying: data.isPlaying,
                 onPressed: widget.onTogglePlay,
               ),
+              _NextButton(onPressed: widget.onNext),
             ],
           ),
-          const SizedBox(height: AppTokens.spaceXs),
-          _ProgressBar(fraction: data.fraction),
+          // 移除底部进度线，避免形成多余的“下边框”。
         ],
       ),
     );
@@ -548,7 +541,7 @@ class _SwipeableCapsuleState extends State<_SwipeableCapsule>
 }
 
 // ---------------------------------------------------------------------------
-// 桌面端：双行胶囊（封面/歌名 + 控制）+ 进度条 + 滚轮切歌
+// 桌面端：双行胶囊（封面/歌名 + 控制）+ 滚轮切歌
 // ---------------------------------------------------------------------------
 
 class _DesktopMiniPlayer extends StatelessWidget {
@@ -585,8 +578,8 @@ class _DesktopMiniPlayer extends StatelessWidget {
         child: SizedBox(
           width: 480,
           child: GlassOverlay(
-            blur: 30,
-            radius: AppTokens.radiusL,
+            blur: 8,
+            radius: AppTokens.radiusPill,
             padding: const EdgeInsets.symmetric(
               horizontal: AppTokens.spaceM,
               vertical: AppTokens.spaceS,
@@ -640,8 +633,6 @@ class _DesktopMiniPlayer extends StatelessWidget {
                     ),
                   ],
                 ),
-                const SizedBox(height: AppTokens.spaceXs),
-                _ProgressBar(fraction: data.fraction),
               ],
             ),
           ),

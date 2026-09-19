@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/localization/app_strings.dart';
 import '../../core/theme/app_tokens.dart';
+import '../components/glass_overlay.dart';
 
 /// 桌面端左侧边栏（Apple Music 风格）。
 ///
@@ -154,46 +155,62 @@ class _SideBarItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final fg = selected ? scheme.primary : scheme.onSurfaceVariant;
     return Padding(
       padding: const EdgeInsets.symmetric(
         horizontal: AppTokens.spaceM,
         vertical: AppTokens.spaceXs,
       ),
-      child: Material(
-        color: selected ? scheme.primary.withValues(alpha: 0.12) : Colors.transparent,
-        borderRadius: BorderRadius.circular(AppTokens.radiusPill),
-        child: InkWell(
-          key: itemKey,
-          borderRadius: BorderRadius.circular(AppTokens.radiusPill),
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppTokens.spaceM,
-              vertical: 10,
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  selected ? selectedIcon : icon,
-                  size: 22,
-                  color: fg,
+      child: SizedBox(
+        width: double.infinity,
+        child: GlassOverlay(
+          radius: AppTokens.radiusPill,
+          blur: 12,
+          border: false,
+          shadow: false,
+          highlight: false,
+          // 中性白底选中态（与玻璃同色系），不带蓝色色相；
+          // 选中强调色由下方图标/文字（accent）承担。
+          tint: selected
+              ? Colors.white.withValues(alpha: isDark ? 0.12 : 0.40)
+              : Colors.transparent,
+          child: InkWell(
+            key: itemKey,
+            borderRadius: BorderRadius.circular(AppTokens.radiusPill),
+            onTap: onTap,
+            child: SizedBox(
+              width: double.infinity,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppTokens.spaceM,
+                  vertical: 10,
                 ),
-                const SizedBox(width: AppTokens.spaceM),
-                Flexible(
-                  child: Text(
-                    label,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      selected ? selectedIcon : icon,
+                      size: 22,
                       color: fg,
-                      fontSize: AppTokens.fontSizeBody,
-                      fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
                     ),
-                  ),
+                    const SizedBox(width: AppTokens.spaceM),
+                    Flexible(
+                      child: Text(
+                        label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: fg,
+                          fontSize: AppTokens.fontSizeBody,
+                          fontWeight:
+                              selected ? FontWeight.w600 : FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-              ],
+              ),
             ),
           ),
         ),

@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:zeromusic/services/audio/audio_controller.dart';
 import 'package:zeromusic/ui/components/song_tile.dart';
+import 'package:zeromusic/ui/pages/import/import_page.dart';
 import 'package:zeromusic/ui/pages/playlist/playlist_page.dart';
 import 'package:zeromusic/ui/scaffold/app_side_bar.dart';
 
@@ -81,6 +82,99 @@ void main() {
     final tiles = tester.widgetList<SongTile>(find.byType(SongTile)).toList();
     expect(tiles.first.song.title, '成都'); // 30 分钟前最近播放
     expect(tiles.last.song.lastPlayedAt, isNull); // 无播放记录排最后
+  });
+
+  testWidgets('分类标签：左右滑动切换主分类', (tester) async {
+    await pumpPlaylist(tester);
+
+    // 初始「全部」。
+    expect(find.text('夜空中最亮的星'), findsOneWidget);
+
+    // 左滑 → 艺人（分组标题出现）。
+    await tester.fling(
+        find.text('夜空中最亮的星'), const Offset(-500, 0), 1000);
+    await tester.pumpAndSettle();
+    expect(find.text('周杰伦'), findsWidgets);
+    expect(tileOf('晴天'), findsOneWidget);
+    expect(tileOf('告白气球'), findsOneWidget);
+
+    // 右滑 → 回到全部。
+    await tester.fling(find.text('晴天'), const Offset(500, 0), 1000);
+    await tester.pumpAndSettle();
+    expect(find.text('夜空中最亮的星'), findsOneWidget);
+    expect(find.text('周杰伦'), findsNothing);
+  });
+
+  testWidgets('分类标签：滑动与胶囊点击双向同步', (tester) async {
+    await pumpPlaylist(tester);
+
+    // 胶囊点击仍可切换（同步 PageView 动画）。
+    await tester.tap(find.text('Favorites'));
+    await tester.pumpAndSettle();
+    expect(find.byType(SongTile), findsNWidgets(3));
+
+    // 左滑切到最近播放（喜欢 → 最近）。
+    await tester.fling(
+        find.byType(SongTile).first, const Offset(-500, 0), 1000);
+    await tester.pumpAndSettle();
+    expect(tileOf('成都'), findsOneWidget);
+  });
+
+  testWidgets('分类标签：标签分类下滑动切回主分类', (tester) async {
+    await pumpPlaylist(tester);
+
+    // 打开「标签 ▾」选择「开车必备」（预置标签：夜空中最亮的星/平凡之路/成都）。
+    await tester.ensureVisible(find.text('Tags ▾'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Tags ▾'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('开车必备'));
+    await tester.pumpAndSettle();
+    expect(find.byType(SongTile), findsNWidgets(3));
+
+    // 左滑 → 切到下一个主分类（艺人），标签筛选被清除。
+    await tester.fling(
+        find.byType(SongTile).first, const Offset(-500, 0), 1000);
+    await tester.pumpAndSettle();
+    expect(find.text('周杰伦'), findsWidgets);
+  });
+
+  testWidgets('分类边界：最近播放页继续左滑进入导入页', (tester) async {
+    await pumpPlaylist(tester);
+
+    // 切到最右「最近播放」。
+    await tester.tap(find.text('Recently Played'));
+    await tester.pumpAndSettle();
+    expect(tileOf('成都'), findsOneWidget);
+
+    // 继续左滑（越界）→ 交棒外层切换到导入页。
+    await tester.fling(
+        find.byType(SongTile).first, const Offset(-500, 0), 1000);
+    await tester.pumpAndSettle();
+
+    expect(find.byType(ImportPage), findsOneWidget);
+  });
+
+  testWidgets('均衡动画：播放中跳动，暂停后停止', (tester) async {
+    await pumpPlaylist(tester);
+
+    // 点一首歌开始播放（夜空中最亮的星 id=1）。
+    await tester.tap(tileOf('夜空中最亮的星'));
+    await tester.pumpAndSettle();
+
+    dynamic eq() => tester
+        .widget<Widget>(find.byKey(const ValueKey('equalizer-1'))) as dynamic;
+    expect(eq().isPlaying, isTrue);
+
+    // 经迷你条暂停 → 均衡动画停止。
+    await tester.tap(find.byIcon(Icons.pause_rounded));
+    await tester.pumpAndSettle();
+    expect(eq().isPlaying, isFalse);
+
+    // 再播放 → 恢复跳动。
+    await tester.tap(find.byIcon(Icons.play_arrow_rounded));
+    await tester.pumpAndSettle();
+    expect(eq().isPlaying, isTrue);
   });
 
   testWidgets('搜索：按歌手/标签名实时过滤', (tester) async {

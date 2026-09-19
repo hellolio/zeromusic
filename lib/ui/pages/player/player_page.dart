@@ -53,30 +53,35 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
     final strings = context.strings;
     final state = ref.watch(audioControllerProvider);
     final track = state.currentTrack;
-    final prefs = ref.watch(preferencesProvider).value ?? const AppPreferences();
+    final prefs =
+        ref.watch(preferencesProvider).value ?? const AppPreferences();
     final isDesktop =
         MediaQuery.sizeOf(context).width >= AppBreakpoints.desktop;
 
     return Scaffold(
-      backgroundColor: Colors.black,
-      body: Stack(
-        fit: StackFit.expand,
-        children: [
-          AnimatedPaletteBackground(
-            seed: track?.id.hashCode ?? 0,
-            isPlaying: state.isPlaying,
-            hasTrack: state.hasTrack,
-            level: prefs.backgroundEffect,
-            coverPath: track?.coverPath,
-          ),
-          SafeArea(
-            child: PullToDismiss(
-              enabled: !isDesktop,
-              onDismiss: () => Navigator.of(context).maybePop(),
+      // 拖动时背景随整页移动，露出下方路由而非一块静态黑色底。
+      backgroundColor: Colors.transparent,
+      body: PullToDismiss(
+        enabled: true,
+        // 仅屏幕上方 60%（进度条上方一定距离）下拉才退出，避免与进度条拖动冲突。
+        startAreaFraction: 0.6,
+        onDismiss: () => Navigator.of(context).maybePop(),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            AnimatedPaletteBackground(
+              seed: track?.id.hashCode ?? 0,
+              isPlaying: state.isPlaying,
+              hasTrack: state.hasTrack,
+              level: prefs.backgroundEffect,
+              coverPath: track?.coverPath,
+            ),
+            SafeArea(
               child: Column(
                 children: [
                   const SizedBox(height: AppTokens.spaceS),
                   _CloseBar(
+                    isDesktop: isDesktop,
                     onTap: () => Navigator.of(context).maybePop(),
                   ),
                   Expanded(
@@ -101,8 +106,8 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
                 ],
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -128,9 +133,7 @@ class _EmptyPlayback extends StatelessWidget {
           const SizedBox(height: AppTokens.spaceM),
           Text(
             strings.empty,
-            style: Theme.of(context)
-                .textTheme
-                .bodyLarge
+            style: Theme.of(context).textTheme.bodyLarge
                 ?.copyWith(color: Colors.white70),
           ),
         ],
@@ -175,8 +178,7 @@ class _PlayerContent extends ConsumerWidget {
     final sleepLeft = ref.watch(sleepTimerProvider);
 
     // 歌词数据。
-    final lines =
-        ref.watch(lyricsLinesProvider).value ?? const <LyricsLine>[];
+    final lines = ref.watch(lyricsLinesProvider).value ?? const <LyricsLine>[];
     final activeIndex = ref.watch(activeLyricIndexProvider);
     final lyricsRaw = ref.watch(lyricsRawProvider).value;
 
@@ -229,10 +231,10 @@ class _PlayerContent extends ConsumerWidget {
           onToggleFavorite: favSong == null
               ? null
               : () => ref
-                  .read(mediaRepositoryProvider)
-                  .toggleFavorite(favSong!.id, !isFavorite),
+                    .read(mediaRepositoryProvider)
+                    .toggleFavorite(favSong!.id, !isFavorite),
           onOpenTimer: () => _showSleepTimerSheet(context, ref),
-          onOpenVolume: () => _showVolumeSheet(context, ref),
+          onOpenVolume: () => _showVolumePopover(context, ref),
           onOpenLyrics: onToggleLyrics,
         ),
         const SizedBox(height: AppTokens.spaceM),
@@ -284,8 +286,7 @@ class _PlayerContent extends ConsumerWidget {
       );
       return LayoutBuilder(
         builder: (context, constraints) {
-          final panelWidth =
-              (constraints.maxWidth * 0.45).clamp(280.0, 460.0);
+          final panelWidth = (constraints.maxWidth * 0.45).clamp(280.0, 460.0);
           return Row(
             children: [
               Expanded(flex: 55, child: playerColumn),
@@ -296,9 +297,10 @@ class _PlayerContent extends ConsumerWidget {
                 transitionBuilder: (child, animation) => FadeTransition(
                   opacity: animation,
                   child: SlideTransition(
-                    position:
-                        Tween(begin: const Offset(1, 0), end: Offset.zero)
-                            .animate(animation),
+                    position: Tween(
+                      begin: const Offset(1, 0),
+                      end: Offset.zero,
+                    ).animate(animation),
                     child: child,
                   ),
                 ),
@@ -374,8 +376,14 @@ class _PlayerContent extends ConsumerWidget {
         );
       },
       child: lyricsOpen
-          ? KeyedSubtree(key: const ValueKey('lyrics-view'), child: mobileLyrics)
-          : KeyedSubtree(key: const ValueKey('player-view'), child: playerColumn),
+          ? KeyedSubtree(
+              key: const ValueKey('lyrics-view'),
+              child: mobileLyrics,
+            )
+          : KeyedSubtree(
+              key: const ValueKey('player-view'),
+              child: playerColumn,
+            ),
     );
   }
 }
@@ -383,6 +391,9 @@ class _PlayerContent extends ConsumerWidget {
 /// 底行槽位几何：播放页底行与歌词视图切回按钮共享，保证二者对齐。
 const double _bottomSlotWidth = 48;
 const double _bottomSlotHeight = 52;
+
+/// 音量按钮锚点（竖向音量弹窗定位基准，全局单例保证跨构建稳定）。
+final GlobalKey _volumeAnchorKey = GlobalKey();
 
 /// 移动端歌词切换按钮（圆形）的直径。
 const double _lyricsToggleDiameter = 46;
@@ -433,11 +444,12 @@ double _lyricsToggleRight(double width) {
 double get _lyricsToggleBottom =>
     AppTokens.spaceM + (_bottomSlotHeight - _lyricsToggleDiameter) / 2;
 
-/// 顶部「下拉收起」细横线（Apple Music 风格抓取条）。
+/// 顶部收起条：移动端为 Apple Music 风格细横线；桌面端为倒三角（点击区更大）。
 class _CloseBar extends StatelessWidget {
-  const _CloseBar({required this.onTap});
+  const _CloseBar({required this.onTap, this.isDesktop = false});
 
   final VoidCallback onTap;
+  final bool isDesktop;
 
   @override
   Widget build(BuildContext context) {
@@ -445,23 +457,72 @@ class _CloseBar extends StatelessWidget {
       key: const ValueKey('player-close-bar'),
       behavior: HitTestBehavior.opaque,
       onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: AppTokens.spaceL),
-        child: const Center(
-          child: SizedBox(
-            width: 44,
-            height: 5,
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.all(Radius.circular(3)),
+      child: isDesktop
+          ? const SizedBox(
+              height: 32,
+              child: Center(
+                child: _DownTriangle(key: ValueKey('player-close-triangle')),
+              ),
+            )
+          : Padding(
+              padding: const EdgeInsets.symmetric(horizontal: AppTokens.spaceL),
+              child: const Center(
+                child: SizedBox(
+                  width: 44,
+                  height: 5,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.all(Radius.circular(3)),
+                    ),
+                  ),
+                ),
               ),
             ),
-          ),
-        ),
-      ),
     );
   }
+}
+
+/// 倒 V / chevron-down（桌面端收起条）：比细横线更醒目、点击区更大。
+class _DownTriangle extends StatelessWidget {
+  const _DownTriangle({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomPaint(
+      size: const Size(28, 15),
+      painter: _DownTrianglePainter(color: Colors.white),
+    );
+  }
+}
+
+class _DownTrianglePainter extends CustomPainter {
+  const _DownTrianglePainter({required this.color});
+
+  /// 描边粗细（适中，不过粗）。
+  static const double _strokeWidth = 2.4;
+
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    // 长宽不等（宽 > 高，约 2:1）的 V 形：两段圆头线在底部交汇。
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = _strokeWidth
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+    final path = Path()
+      ..moveTo(_strokeWidth / 2 + 1, 2)
+      ..lineTo(size.width / 2, size.height - 2)
+      ..lineTo(size.width - _strokeWidth / 2 - 1, 2);
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(_DownTrianglePainter oldDelegate) =>
+      oldDelegate.color != color;
 }
 
 /// 播放中缓慢旋转的封面；暂停停止；减弱动效时静止。
@@ -516,8 +577,10 @@ class _RotatingCoverState extends State<_RotatingCover>
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final size =
-            min(constraints.maxWidth, min(constraints.maxHeight, 340.0));
+        final size = min(
+          constraints.maxWidth,
+          min(constraints.maxHeight, 340.0),
+        );
         return Center(
           child: Container(
             width: size,
@@ -592,10 +655,10 @@ class _TrackInfo extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final subtitle = [track.artist, track.album]
-        .whereType<String>()
-        .where((s) => s.isNotEmpty)
-        .join(' · ');
+    final subtitle = [
+      track.artist,
+      track.album,
+    ].whereType<String>().where((s) => s.isNotEmpty).join(' · ');
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: AppTokens.spaceL),
       child: Column(
@@ -617,8 +680,9 @@ class _TrackInfo extends StatelessWidget {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               textAlign: TextAlign.center,
-              style: theme.textTheme.bodyMedium
-                  ?.copyWith(color: Colors.white70),
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: Colors.white70,
+              ),
             ),
           ],
         ],
@@ -682,6 +746,17 @@ class _PlayerSeekBarState extends State<_PlayerSeekBar> {
     setState(() => _dragFraction = null);
   }
 
+  /// 点击进度条直接跳转：按点按位置换算比例 seek。
+  /// 纯点击不会触发 [onHorizontalDragEnd]，必须单独处理点按手势。
+  void _seekAt(double dx) {
+    if (!_canSeek) return;
+    final f = (dx / _width).clamp(0.0, 1.0);
+    widget.onSeek(
+      Duration(milliseconds: (widget.duration.inMilliseconds * f).round()),
+    );
+    setState(() => _dragFraction = null);
+  }
+
   String _fmt(Duration d) {
     final m = d.inMinutes;
     final s = (d.inSeconds % 60).toString().padLeft(2, '0');
@@ -714,6 +789,8 @@ class _PlayerSeekBarState extends State<_PlayerSeekBar> {
                   onHorizontalDragUpdate: (d) =>
                       _updateDrag(d.localPosition.dx),
                   onHorizontalDragEnd: (_) => _endDrag(),
+                  // 点击（不滑动）时直接按点按位置 seek。
+                  onTapUp: (d) => _seekAt(d.localPosition.dx),
                   child: SizedBox(
                     height: _hitHeight,
                     width: width,
@@ -887,7 +964,9 @@ class _TransportRow extends StatelessWidget {
           tooltip: repeatLabel,
           onTap: onRepeat,
           size: 26,
-          color: repeatActive ? Theme.of(context).colorScheme.primary : Colors.white,
+          color: repeatActive
+              ? Theme.of(context).colorScheme.primary
+              : Colors.white,
         ),
         _transportButton(
           context,
@@ -926,10 +1005,7 @@ class _TransportRow extends StatelessWidget {
           tooltip: strings.playerQueue,
           iconSize: 26,
           padding: const EdgeInsets.all(10),
-          icon: const Icon(
-            CupertinoIcons.list_bullet,
-            color: Colors.white,
-          ),
+          icon: const Icon(CupertinoIcons.list_bullet, color: Colors.white),
         ),
       ],
     );
@@ -1004,6 +1080,7 @@ class _BottomRow extends StatelessWidget {
           ),
           // 音量（静音时换图标）。
           SizedBox(
+            key: _volumeAnchorKey,
             width: _slotWidth,
             child: IconButton(
               key: const ValueKey('player-volume-button'),
@@ -1124,17 +1201,25 @@ Future<void> _showSleepTimerSheet(BuildContext context, WidgetRef ref) async {
               padding: const EdgeInsets.all(AppTokens.spaceM),
               child: Text(
                 strings.playerSleepTimer,
-                style: Theme.of(context)
-                    .textTheme
-                    .titleMedium
+                style: Theme.of(context).textTheme.titleMedium
                     ?.copyWith(fontWeight: FontWeight.w700),
               ),
             ),
-            _sleepTile(context, strings, strings.playerSleepOff,
-                Duration.zero, current),
+            _sleepTile(
+              context,
+              strings,
+              strings.playerSleepOff,
+              Duration.zero,
+              current,
+            ),
             for (final m in presets)
-              _sleepTile(context, strings, strings.sleepTimerMinutes(m),
-                  Duration(minutes: m), current),
+              _sleepTile(
+                context,
+                strings,
+                strings.sleepTimerMinutes(m),
+                Duration(minutes: m),
+                current,
+              ),
             const SizedBox(height: AppTokens.spaceS),
           ],
         ),
@@ -1171,7 +1256,9 @@ Widget _sleepTile(
     title: Text(
       label,
       style: theme.textTheme.bodyLarge?.copyWith(
-        color: checked ? theme.colorScheme.primary : theme.colorScheme.onSurface,
+        color: checked
+            ? theme.colorScheme.primary
+            : theme.colorScheme.onSurface,
         fontWeight: checked ? FontWeight.w600 : FontWeight.w400,
       ),
     ),
@@ -1179,64 +1266,109 @@ Widget _sleepTile(
   );
 }
 
-/// 音量调节：居中弹窗内滑杆（0–100%），改动即时持久化并应用到引擎。
-Future<void> _showVolumeSheet(BuildContext context, WidgetRef ref) async {
-  final strings = context.strings;
-  await showCenterPopup<void>(
-    context,
-    child: GlassOverlay(
-      radius: AppTokens.radiusL,
-      child: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(AppTokens.spaceL),
-          child: Consumer(
-            builder: (context, ref, _) {
-              final volume =
-                  ref.watch(preferencesProvider).value?.defaultVolume ?? 1.0;
-              final theme = Theme.of(context);
-              return Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    strings.playerVolume,
-                    style: theme.textTheme.titleMedium
-                        ?.copyWith(fontWeight: FontWeight.w700),
-                  ),
-                  const SizedBox(height: AppTokens.spaceS),
-                  Row(
-                    children: [
-                      Icon(
-                        volume <= 0
-                            ? CupertinoIcons.volume_mute
-                            : CupertinoIcons.speaker_2_fill,
-                        size: 20,
-                        color: theme.colorScheme.onSecondary,
-                      ),
-                      const SizedBox(width: AppTokens.spaceM),
-                      Expanded(
-                        child: Slider(
-                          value: volume.clamp(0.0, 1.0),
-                          onChanged: (v) => ref
-                              .read(preferencesProvider.notifier)
-                              .setDefaultVolume(v),
-                        ),
-                      ),
-                      Text(
-                        '${(volume * 100).round()}%',
-                        style: theme.textTheme.bodyMedium
-                            ?.copyWith(color: theme.colorScheme.onSecondary),
-                      ),
-                    ],
-                  ),
-                ],
-              );
-            },
+/// 音量调节：在音量按钮正上方弹出竖向滑杆窗口（不遮暗背景），
+/// 拖动即时持久化并应用到引擎；点击窗口外任意处关闭。
+void _showVolumePopover(BuildContext context, WidgetRef ref) {
+  final box = _volumeAnchorKey.currentContext?.findRenderObject() as RenderBox?;
+  if (box == null || !box.attached) return;
+  final overlay = Overlay.of(context);
+  final anchor = box.localToGlobal(Offset.zero);
+  final anchorSize = box.size;
+  final overlaySize = overlay.context.size ?? Size.zero;
+
+  // 竖向滑杆只需要容纳百分比、滑块和图标，保持紧凑避免多余留白。
+  const popWidth = 56.0;
+  const popHeight = 216.0;
+
+  // 水平：以按钮中心为基准，靠边时留 12px 间距。
+  var left = anchor.dx + anchorSize.width / 2 - popWidth / 2;
+  final maxLeft = (overlaySize.width - popWidth - 12.0).clamp(
+    12.0,
+    double.infinity,
+  );
+  left = left.clamp(12.0, maxLeft);
+  // 垂直：优先按钮上方；上方空间不足时翻转到下方。
+  var top = anchor.dy - popHeight - 12;
+  if (top < 12) {
+    top = anchor.dy + anchorSize.height + 12;
+    if (top + popHeight > overlaySize.height) top = 12;
+  }
+
+  late final OverlayEntry entry;
+  entry = OverlayEntry(
+    builder: (_) => Stack(
+      children: [
+        // 透明点击层：仅用于点击外部关闭，不遮暗背景。
+        Positioned.fill(
+          child: GestureDetector(
+            behavior: HitTestBehavior.translucent,
+            onTap: entry.remove,
+            child: const ColoredBox(color: Colors.transparent),
           ),
         ),
-      ),
+        Positioned(
+          left: left,
+          top: top,
+          width: popWidth,
+          height: popHeight,
+          child: const _VolumePopover(),
+        ),
+      ],
     ),
   );
+  overlay.insert(entry);
+}
+
+/// 竖向音量窗口：百分比 / 竖向滑杆 / 静音图标，实时写入偏好并同步引擎。
+/// 点击窗口外部（透明点击层）关闭；窗口内仅滑杆响应拖拽。
+class _VolumePopover extends ConsumerWidget {
+  const _VolumePopover();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final volume = ref.watch(preferencesProvider).value?.defaultVolume ?? 1.0;
+    final theme = Theme.of(context);
+    return GlassOverlay(
+      key: const ValueKey('player-volume-popover'),
+      radius: AppTokens.radiusM,
+      tint: theme.brightness == Brightness.dark
+          ? Colors.black.withValues(alpha: 0.4)
+          : Colors.white.withValues(alpha: 0.8),
+      padding: EdgeInsets.zero,
+      child: Column(
+        children: [
+          const SizedBox(height: AppTokens.spaceXs),
+          Text(
+            '${(volume * 100).round()}%',
+            style: theme.textTheme.labelSmall?.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Expanded(
+            child: RotatedBox(
+              quarterTurns: 3,
+              child: Slider(
+                key: const ValueKey('player-volume-slider'),
+                value: volume.clamp(0.0, 1.0),
+                onChanged: (v) =>
+                    ref.read(preferencesProvider.notifier).setDefaultVolume(v),
+              ),
+            ),
+          ),
+          const SizedBox(height: 2),
+          Icon(
+            volume <= 0
+                ? CupertinoIcons.volume_mute
+                : CupertinoIcons.speaker_2_fill,
+            size: 16,
+            color: theme.colorScheme.onSecondary,
+          ),
+          const SizedBox(height: AppTokens.spaceXs),
+        ],
+      ),
+    );
+  }
 }
 
 /// 播放队列：当前曲目高亮，点行即切歌并收起。
@@ -1259,10 +1391,8 @@ Future<void> _showQueueSheet(BuildContext context, WidgetRef ref) async {
             padding: const EdgeInsets.all(AppTokens.spaceM),
             child: Text(
               strings.playerUpNext,
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w700,
-                  ),
+              style: Theme.of(context).textTheme.titleLarge
+                  ?.copyWith(color: Colors.white, fontWeight: FontWeight.w700),
             ),
           ),
           Flexible(

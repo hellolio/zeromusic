@@ -10,22 +10,41 @@ import '../../../data/database/app_database.dart';
 import '../../../services/audio/audio_controller.dart';
 import '../../../services/audio/track.dart';
 import '../../components/song_tile.dart';
+import '../../scaffold/content_bottom_inset.dart';
 import 'playlist_data.dart';
 import 'playlist_menus.dart';
 
 /// 播放列表页面：分类/标签筛选、搜索、点按即播、歌曲上下文菜单。
 class PlaylistPage extends ConsumerStatefulWidget {
-  const PlaylistPage({super.key});
+  const PlaylistPage({super.key, this.onSwipeNext});
+
+  /// 移动端：在「最近播放」页继续左滑（到达分类边界）时回调，供外层切换到导入页。
+  final VoidCallback? onSwipeNext;
 
   @override
   ConsumerState<PlaylistPage> createState() => _PlaylistPageState();
 }
 
 class _PlaylistPageState extends ConsumerState<PlaylistPage> {
+  /// 可左右滑动切换的主分类（「标签」分类经弹窗进入，不参与滑动）。
+  static const List<PlaylistCategory> _categories = [
+    PlaylistCategory.all,
+    PlaylistCategory.artists,
+    PlaylistCategory.favorites,
+    PlaylistCategory.recent,
+  ];
+
   PlaylistCategory _category = PlaylistCategory.all;
   int? _selectedTagId;
   bool _searching = false;
   final TextEditingController _searchCtrl = TextEditingController();
+
+  /// 当前 PageView 页（对应 [_categories] 下标）；「标签」分类选中时页不动，仅内容切换。
+  int _pageIndex = 0;
+  final PageController _categoryPageController = PageController();
+
+  /// 单次手势是否已触发「交棒外层进入导入页」（防止重复触发）。
+  bool _forwardFired = false;
 
   /// 是否处于批量编辑（多选）模式。
   bool _selecting = false;
@@ -34,14 +53,64 @@ class _PlaylistPageState extends ConsumerState<PlaylistPage> {
   @override
   void dispose() {
     _searchCtrl.dispose();
+    _categoryPageController.dispose();
     super.dispose();
   }
 
   void _selectCategory(PlaylistCategory c) {
+    if (c == PlaylistCategory.tag) {
+      setState(() {
+        _category = c;
+        _selectedTagId = null;
+      });
+      return;
+    }
+    final index = _categories.indexOf(c);
     setState(() {
       _category = c;
       _selectedTagId = null;
+      _pageIndex = index;
     });
+    if (_categoryPageController.hasClients) {
+      _categoryPageController.animateToPage(
+        index,
+        duration: AppCurves.pageTransition,
+        curve: AppCurves.standard,
+      );
+    }
+  }
+
+  /// 滑动切换主分类；「标签」模式下滑动即回到主分类并清空标签筛选。
+  void _onCategoryPageChanged(int i) {
+    setState(() {
+      _pageIndex = i;
+      _category = _categories[i];
+      _selectedTagId = null;
+    });
+  }
+
+  /// 手势开始：复位交棒标志，供下一次手势重新判定。
+  bool _onScrollStart(ScrollStartNotification _) {
+    _forwardFired = false;
+    return false;
+  }
+
+  /// 到达最右页（最近播放）后继续左滑（越界）→ 交棒外层进入导入页。
+  ///
+  /// 使用 [ScrollUpdateNotification] 而非 [OverscrollNotification]：
+  /// 本页 PageView 采用 BouncingScrollPhysics，其 applyBoundaryConditions 恒为 0，
+  /// 永远不会派发 OverscrollNotification；但拖过最右页边界时 pixels 会越过
+  /// maxScrollExtent，据此即可判定越界。
+  bool _handleScrollUpdate(ScrollUpdateNotification n) {
+    if (_pageIndex != _categories.length - 1) return false;
+    // 程序化滚动（如分类切换的 animateToPage）不算手势越界。
+    if (n.dragDetails == null) return false;
+    if (n.metrics.pixels <= n.metrics.maxScrollExtent + 8) return false;
+    if (!_forwardFired) {
+      _forwardFired = true;
+      widget.onSwipeNext?.call();
+    }
+    return false;
   }
 
   void _enterSelect() {
@@ -112,15 +181,14 @@ class _PlaylistPageState extends ConsumerState<PlaylistPage> {
       selectedTagId: _selectedTagId,
     );
     if (selected == null || !mounted) return;
-    setState(() {
-      if (selected == -1) {
-        _selectedTagId = null;
-        _category = PlaylistCategory.all;
-      } else {
+    if (selected == -1) {
+      _selectCategory(PlaylistCategory.all);
+    } else {
+      setState(() {
         _selectedTagId = selected;
         _category = PlaylistCategory.tag;
-      }
-    });
+      });
+    }
   }
 
   @override
@@ -130,17 +198,18 @@ class _PlaylistPageState extends ConsumerState<PlaylistPage> {
     final tags = ref.watch(tagsProvider).value ?? const <Tag>[];
     final songTags =
         ref.watch(songTagMapProvider).value ?? const <int, List<int>>{};
-    final query = PlaylistQuery(
-      category: _category,
+    final playback = ref.watch(audioControllerProvider);
+    final currentTrackId = playback.currentTrack?.id;
+    // 当前页可见歌曲（全选/批量编辑入口等）——「标签」分类时即标签筛选结果。
+    final currentSections = _sectionsFor(
+      _category,
+      songs: songs,
+      tags: tags,
+      songTags: songTags,
       search: _searchCtrl.text,
       tagId: _selectedTagId,
     );
-    final sections = buildPlaylistSections(query, songs, tags, songTags);
-    final visibleSongs = [for (final s in sections) ...s.songs];
-    final visibleTracks = [for (final s in visibleSongs) Track.fromSong(s)];
-    final playback = ref.watch(audioControllerProvider);
-    final currentTrackId = playback.currentTrack?.id;
-    final isEmpty = sections.every((s) => s.songs.isEmpty);
+    final visibleSongs = [for (final s in currentSections) ...s.songs];
     final allVisibleSelected =
         visibleSongs.isNotEmpty && visibleSongs.every((s) => _selected.contains(s.id));
 
@@ -222,27 +291,87 @@ class _PlaylistPageState extends ConsumerState<PlaylistPage> {
             ),
           _buildCategoryBar(strings),
           Expanded(
-            child: AnimatedSwitcher(
-              duration: AppCurves.pageTransition,
-              switchInCurve: AppCurves.standard,
-              switchOutCurve: AppCurves.standard,
-              transitionBuilder: (child, animation) {
-                final slide = SlideTransition(
-                  position: Tween(begin: const Offset(0.04, 0), end: Offset.zero)
-                      .animate(animation),
-                  child: FadeTransition(opacity: animation, child: child),
-                );
-                return slide;
-              },
-              child: KeyedSubtree(
-                key: ValueKey('$_category|$_selectedTagId|${_searchCtrl.text}'),
-                child: isEmpty ? _buildEmpty(strings, query) : _buildList(sections, currentTrackId, visibleTracks),
+            child: NotificationListener<ScrollUpdateNotification>(
+              onNotification: _handleScrollUpdate,
+              child: NotificationListener<ScrollStartNotification>(
+                onNotification: _onScrollStart,
+                child: PageView(
+                  controller: _categoryPageController,
+                  // 回弹物理：允许拖过最右页边界（pixels 越过 maxScrollExtent），
+                  // 由外层 ScrollUpdateNotification 监听判定交棒切页。
+                  physics: const BouncingScrollPhysics(),
+                  onPageChanged: _onCategoryPageChanged,
+                  children: [
+                    for (var i = 0; i < _categories.length; i++)
+                      _buildCategoryPage(
+                        i,
+                        strings,
+                        songs: songs,
+                        tags: tags,
+                        songTags: songTags,
+                        currentTrackId: currentTrackId,
+                        playing: playback.isPlaying,
+                      ),
+                  ],
+                ),
               ),
             ),
           ),
         ],
       ),
     );
+  }
+
+  /// 按分类构建分组列表（纯逻辑，供当前页与 PageView 各页共用）。
+  List<PlaylistSection> _sectionsFor(
+    PlaylistCategory category, {
+    required List<Song> songs,
+    required List<Tag> tags,
+    required Map<int, List<int>> songTags,
+    required String search,
+    required int? tagId,
+  }) {
+    return buildPlaylistSections(
+      PlaylistQuery(category: category, search: search, tagId: tagId),
+      songs,
+      tags,
+      songTags,
+    );
+  }
+
+  /// PageView 某一页：按页主分类渲染；「标签」分类选中时，当前页展示标签筛选结果。
+  Widget _buildCategoryPage(
+    int i,
+    AppStrings strings, {
+    required List<Song> songs,
+    required List<Tag> tags,
+    required Map<int, List<int>> songTags,
+    required String? currentTrackId,
+    required bool playing,
+  }) {
+    final pageCat = _categories[i];
+    final activeCat = (_category == PlaylistCategory.tag && i == _pageIndex)
+        ? PlaylistCategory.tag
+        : pageCat;
+    final sections = _sectionsFor(
+      activeCat,
+      songs: songs,
+      tags: tags,
+      songTags: songTags,
+      search: _searchCtrl.text,
+      tagId: _selectedTagId,
+    );
+    final visibleSongs = [for (final s in sections) ...s.songs];
+    final visibleTracks = [for (final s in visibleSongs) Track.fromSong(s)];
+    final isEmpty = sections.every((s) => s.songs.isEmpty);
+    final query = PlaylistQuery(
+      category: activeCat,
+      search: _searchCtrl.text,
+      tagId: _selectedTagId,
+    );
+    return isEmpty
+        ? _buildEmpty(strings, query)
+        : _buildList(sections, currentTrackId, visibleTracks, playing: playing);
   }
 
   Widget _buildCategoryBar(AppStrings strings) {
@@ -285,17 +414,24 @@ class _PlaylistPageState extends ConsumerState<PlaylistPage> {
   }
 
   Widget _buildList(
-      List<PlaylistSection> sections, String? currentTrackId, List<Track> tracks) {
+    List<PlaylistSection> sections,
+    String? currentTrackId,
+    List<Track> tracks, {
+    required bool playing,
+  }) {
     final rows = <Widget>[];
     for (final section in sections) {
       if (section.title.isNotEmpty) {
         rows.add(_SectionHeader(title: section.title, count: section.songs.length));
       }
       for (final song in section.songs) {
+        final isPlaying = currentTrackId != null &&
+            currentTrackId == song.id.toString();
         rows.add(
           SongTile(
             song: song,
-            isPlaying: currentTrackId != null && currentTrackId == song.id.toString(),
+            isPlaying: isPlaying,
+            isAudible: playing && isPlaying,
             onTap: () => _play(song, tracks),
             onMore: _selecting
                 ? null
@@ -308,7 +444,10 @@ class _PlaylistPageState extends ConsumerState<PlaylistPage> {
       }
     }
     return ListView(
-      padding: const EdgeInsets.only(bottom: AppTokens.spaceL),
+      // 底部预留悬浮玻璃（迷你条+底栏）高度，最后一项可滚到玻璃之上。
+      padding: EdgeInsets.only(
+        bottom: AppTokens.spaceL + ContentBottomInset.of(context),
+      ),
       children: rows,
     );
   }
