@@ -22,15 +22,13 @@ class MyApp extends ConsumerWidget {
         ref.watch(preferencesProvider).value ?? const AppPreferences();
     final appStrings = AppLanguage.fromLocale(prefs.locale).strings;
 
-    // 合并环境已有的 disableAnimations（系统减弱动态效果 / 测试包装层）
-    // 与偏好开关，保证全应用动画统一降级。
+    // 保留环境已有的 disableAnimations（系统减弱动态效果 / 测试包装层），
+    // 全应用动画据此统一降级；不提供应用内减弱动效开关。
     final existing = MediaQuery.maybeOf(context);
     final base = existing ?? MediaQueryData.fromView(View.of(context));
-    final reduced =
-        (existing?.disableAnimations ?? false) || prefs.reduceMotion;
 
     return MediaQuery(
-      data: base.copyWith(disableAnimations: reduced),
+      data: base,
       child: MaterialApp(
         title: appStrings.appName,
         debugShowCheckedModeBanner: false,

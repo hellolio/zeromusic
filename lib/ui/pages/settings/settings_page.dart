@@ -11,7 +11,7 @@ import '../../../services/preferences/preferences_controller.dart';
 import '../../scaffold/content_bottom_inset.dart';
 import 'settings_sheets.dart';
 
-/// 设置页面：主题、减弱动效、语言（中/英/日）、默认音量、关于。
+/// 设置页面：主题、语言（中/英/日）、默认音量、背景效果、关于。
 ///
 /// - 移动端 / 桌面端共用同一列表布局；选项统一窗口居中弹框弹出。
 /// - 桌面端内容限制最大宽度并居中，避免「设置项 ↔ 修改元素」相隔过远。
@@ -30,11 +30,12 @@ class SettingsPage extends ConsumerWidget {
     final strings = context.strings;
     final prefs =
         ref.watch(preferencesProvider).value ?? const AppPreferences();
-    final language = AppLanguage.fromLocale(Localizations.localeOf(context)).label;
+    final language = AppLanguage.fromLocale(Localizations.localeOf(context))
+        .label;
     final motionReduced = MediaQuery.disableAnimationsOf(context);
     // 桌面端限制内容宽度并居中，避免设置项与修改元素相隔过远。
-    final desktop = deviceTypeOfSize(MediaQuery.sizeOf(context)) ==
-        DeviceType.desktop;
+    final desktop =
+        deviceTypeOfSize(MediaQuery.sizeOf(context)) == DeviceType.desktop;
 
     final body = ListView(
       // 底部预留悬浮玻璃（迷你条+底栏）高度，最后一项可滚到玻璃之上。
@@ -49,16 +50,6 @@ class SettingsPage extends ConsumerWidget {
           label: strings.settingsTheme,
           value: themeLabel(strings, prefs.themeMode),
           onTap: () => showThemePicker(context, ref),
-        ),
-        _SettingsTile(
-          key: const ValueKey('settings-reduce-motion'),
-          icon: CupertinoIcons.eye_slash,
-          label: strings.settingsReduceMotion,
-          trailing: CupertinoSwitch(
-            value: prefs.reduceMotion,
-            onChanged: (v) =>
-                ref.read(preferencesProvider.notifier).setReduceMotion(v),
-          ),
         ),
         _SectionLabel(strings.settingsLanguage),
         _SettingsTile(
@@ -136,8 +127,7 @@ class _VolumeTile extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final strings = context.strings;
     final theme = Theme.of(context);
-    final volume =
-        ref.watch(preferencesProvider).value?.defaultVolume ?? 1.0;
+    final volume = ref.watch(preferencesProvider).value?.defaultVolume ?? 1.0;
     return Padding(
       key: const ValueKey('settings-volume'),
       padding: const EdgeInsets.symmetric(
@@ -149,17 +139,23 @@ class _VolumeTile extends ConsumerWidget {
         children: [
           Row(
             children: [
-              Icon(CupertinoIcons.speaker_2_fill,
-                  size: 20, color: theme.colorScheme.onSecondary),
+              Icon(
+                CupertinoIcons.speaker_2_fill,
+                size: 20,
+                color: theme.colorScheme.onSecondary,
+              ),
               const SizedBox(width: AppTokens.spaceM),
               Expanded(
-                child: Text(strings.settingsDefaultVolume,
-                    style: theme.textTheme.bodyLarge),
+                child: Text(
+                  strings.settingsDefaultVolume,
+                  style: theme.textTheme.bodyLarge,
+                ),
               ),
               Text(
                 '${(volume * 100).round()}%',
-                style: theme.textTheme.bodyMedium
-                    ?.copyWith(color: theme.colorScheme.onSecondary),
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.onSecondary,
+                ),
               ),
             ],
           ),
@@ -174,21 +170,19 @@ class _VolumeTile extends ConsumerWidget {
   }
 }
 
-/// 设置行：图标 + 标签 +（值 + 箭头）/自定义 trailing。
+/// 设置行：图标 + 标签 +（值 + 箭头）。
 class _SettingsTile extends StatelessWidget {
   const _SettingsTile({
     super.key,
     required this.icon,
     required this.label,
     this.value,
-    this.trailing,
     this.onTap,
   });
 
   final IconData icon;
   final String label;
   final String? value;
-  final Widget? trailing;
   final VoidCallback? onTap;
 
   @override
@@ -196,27 +190,25 @@ class _SettingsTile extends StatelessWidget {
     final theme = Theme.of(context);
     final muted = theme.colorScheme.onSecondary;
     return ListTile(
-      contentPadding:
-          const EdgeInsets.symmetric(horizontal: AppTokens.spaceM),
+      contentPadding: const EdgeInsets.symmetric(horizontal: AppTokens.spaceM),
       leading: Icon(icon, size: 20, color: muted),
       title: Text(label, style: theme.textTheme.bodyLarge),
-      trailing: trailing ??
-          (value == null
-              ? const SizedBox(width: 16)
-              : Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      value!,
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: muted,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    const SizedBox(width: AppTokens.spaceXs),
-                    const Icon(CupertinoIcons.chevron_right, size: 14),
-                  ],
-                )),
+      trailing: value == null
+          ? const SizedBox(width: 16)
+          : Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  value!,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: muted,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(width: AppTokens.spaceXs),
+                const Icon(CupertinoIcons.chevron_right, size: 14),
+              ],
+            ),
       onTap: onTap,
     );
   }
@@ -239,9 +231,7 @@ class _SectionLabel extends StatelessWidget {
       ),
       child: Text(
         label,
-        style: Theme.of(context)
-            .textTheme
-            .labelLarge
+        style: Theme.of(context).textTheme.labelLarge
             ?.copyWith(color: Theme.of(context).colorScheme.onSecondary),
       ),
     );

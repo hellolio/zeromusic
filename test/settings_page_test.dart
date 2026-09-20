@@ -1,4 +1,3 @@
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -21,7 +20,6 @@ void main() {
       const prefs = AppPreferences(
         themeMode: ThemeMode.dark,
         locale: Locale('ja'),
-        reduceMotion: true,
         defaultVolume: 0.35,
         backgroundEffect: BackgroundEffectLevel.vivid,
       );
@@ -30,7 +28,6 @@ void main() {
       final loaded = await store.load();
       expect(loaded.themeMode, ThemeMode.dark);
       expect(loaded.locale?.languageCode, 'ja');
-      expect(loaded.reduceMotion, isTrue);
       expect(loaded.defaultVolume, closeTo(0.35, 1e-9));
       expect(loaded.backgroundEffect, BackgroundEffectLevel.vivid);
     });
@@ -42,7 +39,6 @@ void main() {
       final loaded = await store.load();
       expect(loaded.themeMode, ThemeMode.system);
       expect(loaded.locale, isNull);
-      expect(loaded.reduceMotion, isFalse);
       expect(loaded.defaultVolume, 1.0);
       expect(loaded.backgroundEffect, BackgroundEffectLevel.balanced);
     });
@@ -58,11 +54,13 @@ void main() {
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
 
-    await tester.pumpWidget(wrapApp(
-      overrides: fakeDataLayerOverrides(FakeDataLayer()),
-      preferencesStore: store,
-      audioEngine: engine,
-    ));
+    await tester.pumpWidget(
+      wrapApp(
+        overrides: fakeDataLayerOverrides(FakeDataLayer()),
+        preferencesStore: store,
+        audioEngine: engine,
+      ),
+    );
     await tester.pumpAndSettle();
 
     await tester.tap(find.byIcon(Icons.settings_outlined));
@@ -70,8 +68,9 @@ void main() {
   }
 
   AppPreferences prefsAt(WidgetTester tester) {
-    final container =
-        ProviderScope.containerOf(tester.element(find.byType(SettingsPage)));
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(SettingsPage)),
+    );
     return container.read(preferencesProvider).value ?? const AppPreferences();
   }
 
@@ -82,7 +81,6 @@ void main() {
     for (final label in [
       'Appearance',
       'Theme',
-      'Reduce Motion',
       'Language',
       'Playback',
       'Default Volume',
@@ -152,13 +150,9 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('外观'), findsOneWidget);
-    expect(find.text('减弱动态效果'), findsOneWidget);
     expect(find.text('关于'), findsOneWidget);
     expect(
-      find.descendant(
-        of: find.byType(AppBar),
-        matching: find.text('设置'),
-      ),
+      find.descendant(of: find.byType(AppBar), matching: find.text('设置')),
       findsOneWidget,
     );
     expect(prefsAt(tester).locale?.languageCode, 'zh');
@@ -186,7 +180,6 @@ void main() {
       const AppPreferences(
         themeMode: ThemeMode.dark,
         locale: Locale('ja'),
-        reduceMotion: true,
         defaultVolume: 0.6,
       ),
     );
@@ -195,28 +188,6 @@ void main() {
     expect(find.text('ダーク'), findsOneWidget);
     expect(find.text('日本語'), findsOneWidget);
     expect(find.text('60%'), findsOneWidget);
-    final switchValue = tester.widget<CupertinoSwitch>(
-      find.byType(CupertinoSwitch),
-    );
-    expect(switchValue.value, isTrue);
-  });
-
-  testWidgets('TC-08 减弱动效开关翻转并持久化', (tester) async {
-    final store = InMemoryPreferencesStore();
-    await pumpSettings(tester, store: store);
-
-    final toggle = find.byType(CupertinoSwitch);
-    expect(tester.widget<CupertinoSwitch>(toggle).value, isFalse);
-
-    await tester.tap(toggle);
-    await tester.pumpAndSettle();
-    expect(prefsAt(tester).reduceMotion, isTrue);
-    expect(store.lastSaved.reduceMotion, isTrue);
-
-    await tester.tap(toggle);
-    await tester.pumpAndSettle();
-    expect(prefsAt(tester).reduceMotion, isFalse);
-    expect(store.lastSaved.reduceMotion, isFalse);
   });
 
   testWidgets('TC-09 默认音量滑杆联动引擎', (tester) async {
@@ -229,8 +200,11 @@ void main() {
     final before = prefsAt(tester).defaultVolume;
     await tester.ensureVisible(find.byType(Slider));
     await tester.pumpAndSettle();
-    await tester.drag(find.byType(Slider), const Offset(-200, 0),
-        warnIfMissed: false);
+    await tester.drag(
+      find.byType(Slider),
+      const Offset(-200, 0),
+      warnIfMissed: false,
+    );
     await tester.pumpAndSettle();
 
     final after = prefsAt(tester).defaultVolume;
@@ -242,10 +216,7 @@ void main() {
     final store = InMemoryPreferencesStore();
     await pumpSettings(tester, store: store);
 
-    expect(
-      prefsAt(tester).backgroundEffect,
-      BackgroundEffectLevel.balanced,
-    );
+    expect(prefsAt(tester).backgroundEffect, BackgroundEffectLevel.balanced);
     expect(find.text('Balanced'), findsOneWidget);
 
     await tester.tap(find.byKey(const ValueKey('settings-background-effect')));
@@ -260,9 +231,7 @@ void main() {
 
   testWidgets('TC-11 启动即载入已持久化背景效果档位', (tester) async {
     final store = InMemoryPreferencesStore(
-      const AppPreferences(
-        backgroundEffect: BackgroundEffectLevel.powerSaver,
-      ),
+      const AppPreferences(backgroundEffect: BackgroundEffectLevel.powerSaver),
     );
     await pumpSettings(tester, store: store);
 

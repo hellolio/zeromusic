@@ -13,6 +13,7 @@ import 'package:zeromusic/ui/pages/player/player_background.dart';
 import 'package:zeromusic/ui/pages/player/player_page.dart';
 import 'package:zeromusic/ui/scaffold/adaptive_scaffold.dart';
 import 'package:zeromusic/ui/mini_player/mini_player.dart';
+import 'package:zeromusic/ui/mini_player/mini_player_bounce.dart';
 
 import 'helpers.dart';
 import 'support/fake_audio_engine.dart';
@@ -65,8 +66,9 @@ void main() {
       engine: e,
       preferencesStore: preferencesStore,
       viewport: const Size(1400, 900),
-      overrides:
-          fakeDataLayerOverrides(dataLayer ?? FakeDataLayer(seed: const [])),
+      overrides: fakeDataLayerOverrides(
+        dataLayer ?? FakeDataLayer(seed: const []),
+      ),
     );
     if (queue.isNotEmpty) {
       final container = ProviderScope.containerOf(
@@ -101,10 +103,11 @@ void main() {
           final decoration = d.decoration as BoxDecoration?;
           return decoration?.gradient is RadialGradient;
         })
-        .map((d) =>
-            ((d.decoration as BoxDecoration).gradient! as RadialGradient)
-                .colors
-                .first)
+        .map(
+          (d) => ((d.decoration as BoxDecoration).gradient! as RadialGradient)
+              .colors
+              .first,
+        )
         .toList();
   }
 
@@ -125,10 +128,7 @@ void main() {
       find.byType(AnimatedPaletteBackground, skipOffstage: false),
       findsOneWidget,
     );
-    expect(
-      find.byKey(const ValueKey('palette-blur-layer')),
-      findsOneWidget,
-    );
+    expect(find.byKey(const ValueKey('palette-blur-layer')), findsOneWidget);
     // 均衡档默认 8 个彩色光斑。
     expect(radialBlobCount(tester), 8);
   });
@@ -175,7 +175,8 @@ void main() {
       find.descendant(
         of: background,
         matching: find.byWidgetPredicate(
-          (w) => w is ImageFiltered &&
+          (w) =>
+              w is ImageFiltered &&
               w.key != const ValueKey('palette-blur-layer'),
         ),
       ),
@@ -241,9 +242,7 @@ void main() {
     await tester.pumpAndSettle();
 
     final rect = tester.getRect(find.byKey(const ValueKey('player-seek-bar')));
-    await tester.tapAt(
-      Offset(rect.left + rect.width * 0.75, rect.center.dy),
-    );
+    await tester.tapAt(Offset(rect.left + rect.width * 0.75, rect.center.dy));
     await tester.pumpAndSettle();
 
     expect(engine.seekCount, 1);
@@ -305,7 +304,9 @@ void main() {
   testWidgets('TC-11 歌词面板占位', (tester) async {
     await pumpPlayer(tester);
 
-    await tester.tap(inPlayer(find.byKey(const ValueKey('player-lyrics-button'))));
+    await tester.tap(
+      inPlayer(find.byKey(const ValueKey('player-lyrics-button'))),
+    );
     await tester.pumpAndSettle();
 
     expect(find.text('No lyrics available'), findsOneWidget);
@@ -327,14 +328,10 @@ void main() {
     await pumpPlayer(tester);
 
     // 桌面端渲染倒三角而非细横线。
-    expect(
-      find.byKey(const ValueKey('player-close-triangle')),
-      findsOneWidget,
-    );
+    expect(find.byKey(const ValueKey('player-close-triangle')), findsOneWidget);
 
     // 倒三角点击区更高（≥ 24），明显大于移动端细横线。
-    final rect =
-        tester.getRect(find.byKey(const ValueKey('player-close-bar')));
+    final rect = tester.getRect(find.byKey(const ValueKey('player-close-bar')));
     expect(rect.height, greaterThanOrEqualTo(24));
   });
 
@@ -358,10 +355,7 @@ void main() {
     expect(find.byKey(const ValueKey('player-close-bar')), findsOneWidget);
 
     // 移动端保持细横线，不倒三角。
-    expect(
-      find.byKey(const ValueKey('player-close-triangle')),
-      findsNothing,
-    );
+    expect(find.byKey(const ValueKey('player-close-triangle')), findsNothing);
 
     await tester.tap(find.byKey(const ValueKey('player-close-bar')));
     await tester.pumpAndSettle();
@@ -380,9 +374,8 @@ void main() {
     );
 
     // 空库时迷你条隐藏，直接推入播放页路由验证空态。
-    Navigator.of(tester.element(find.byType(AdaptiveScaffold))).push(
-      MaterialPageRoute(builder: (_) => const PlayerPage()),
-    );
+    Navigator.of(tester.element(find.byType(AdaptiveScaffold)))
+        .push(MaterialPageRoute(builder: (_) => const PlayerPage()));
     await tester.pumpAndSettle();
 
     expect(find.byType(PlayerPage), findsOneWidget);
@@ -429,9 +422,7 @@ void main() {
     await pumpPlayer(
       tester,
       preferencesStore: InMemoryPreferencesStore(
-        const AppPreferences(
-          backgroundEffect: BackgroundEffectLevel.vivid,
-        ),
+        const AppPreferences(backgroundEffect: BackgroundEffectLevel.vivid),
       ),
     );
     expect(radialBlobCount(tester), 12);
@@ -513,10 +504,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // 竖向音量窗口出现（锚定在按钮上方，非居中弹窗）。
-    expect(
-      find.byKey(const ValueKey('player-volume-popover')),
-      findsOneWidget,
-    );
+    expect(find.byKey(const ValueKey('player-volume-popover')), findsOneWidget);
     final slider = find.byKey(const ValueKey('player-volume-slider'));
     expect(slider, findsOneWidget);
     expect(find.byType(Slider), findsOneWidget);
@@ -558,8 +546,9 @@ void main() {
     final queueY = tester
         .getCenter(find.byKey(const ValueKey('player-queue-button')))
         .dy;
-    final volumeY =
-        tester.getCenter(find.byKey(const ValueKey('player-volume-button'))).dy;
+    final volumeY = tester
+        .getCenter(find.byKey(const ValueKey('player-volume-button')))
+        .dy;
     final lyricsY = tester
         .getCenter(find.byKey(const ValueKey('player-lyrics-button')))
         .dy;
@@ -584,7 +573,9 @@ void main() {
 
     // 桌面端歌词分栏默认收起 → 点底行歌词按钮打开。
     expect(find.byKey(const ValueKey('lyrics-panel-close')), findsNothing);
-    await tester.tap(inPlayer(find.byKey(const ValueKey('player-lyrics-button'))));
+    await tester.tap(
+      inPlayer(find.byKey(const ValueKey('player-lyrics-button'))),
+    );
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('lyrics-panel-close')), findsOneWidget);
 
@@ -612,7 +603,9 @@ void main() {
     await tester.pumpAndSettle();
 
     // 点底行歌词按钮进入全屏歌词。
-    await tester.tap(inPlayer(find.byKey(const ValueKey('player-lyrics-button'))));
+    await tester.tap(
+      inPlayer(find.byKey(const ValueKey('player-lyrics-button'))),
+    );
     await tester.pumpAndSettle();
 
     final toggle = find.byKey(const ValueKey('lyrics-toggle-player'));
@@ -672,14 +665,55 @@ void main() {
   testWidgets('移动端播放页：下拉快速甩动退出并返回', (tester) async {
     await pumpMobilePlayer(tester);
 
-    await tester.fling(
-      find.byType(PlayerPage),
-      const Offset(0, 300),
-      1200,
-    );
+    await tester.fling(find.byType(PlayerPage), const Offset(0, 300), 1200);
     await tester.pumpAndSettle();
 
     expect(find.byType(PlayerPage), findsNothing);
+  });
+
+  testWidgets('移动端：进入播放页时迷你条锚点已测量（展开/收起缩放中心）', (tester) async {
+    await pumpApp(
+      tester,
+      engine: FakeAudioEngine(),
+      viewport: const Size(600, 900),
+      overrides: fakeDataLayerOverrides(FakeDataLayer(seed: const [])),
+    );
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(AdaptiveScaffold)),
+    );
+    container.read(audioControllerProvider.notifier).playQueue(const [t1, t2]);
+    await tester.pumpAndSettle();
+
+    // 进入前记录迷你条中心，作为展开/收起动画的缩放锚点。
+    final miniRect = tester.getRect(find.byType(MiniPlayer));
+    await tester.tap(find.byType(MiniPlayer));
+    await tester.pumpAndSettle();
+    expect(find.byType(PlayerPage), findsOneWidget);
+
+    final page = tester.widget<PlayerPage>(find.byType(PlayerPage));
+    expect(page.anchor, isNotNull);
+    expect((page.anchor!.dx - miniRect.center.dx).abs(), lessThan(1));
+    expect((page.anchor!.dy - miniRect.center.dy).abs(), lessThan(1));
+  });
+
+  testWidgets('点按迷你条进入播放页时触发一次迷你条按压反馈', (tester) async {
+    await pumpApp(
+      tester,
+      engine: FakeAudioEngine(),
+      viewport: const Size(600, 900),
+      overrides: fakeDataLayerOverrides(FakeDataLayer(seed: const [])),
+    );
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(AdaptiveScaffold)),
+    );
+    container.read(audioControllerProvider.notifier).playQueue(const [t1, t2]);
+    await tester.pumpAndSettle();
+
+    final before = container.read(miniPlayerPressProvider);
+    await tester.tap(find.byType(MiniPlayer));
+    await tester.pump();
+    expect(container.read(miniPlayerPressProvider), before + 1);
+    await tester.pumpAndSettle();
   });
 }
 

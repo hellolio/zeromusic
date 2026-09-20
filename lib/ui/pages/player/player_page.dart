@@ -19,6 +19,7 @@ import '../../../services/lyrics/lyrics_line.dart';
 import '../../../services/preferences/preferences_controller.dart';
 import '../../components/center_popup.dart';
 import '../../components/glass_overlay.dart';
+import '../../mini_player/mini_player_bounce.dart';
 import 'lyrics_editor.dart';
 import 'lyrics_view.dart';
 import 'player_background.dart';
@@ -35,7 +36,11 @@ import 'pull_to_dismiss.dart';
 /// - 桌面端：播放页内左侧控制元素 + 右侧歌词分栏（顶部 × 关闭，动画滑入/滑出）；
 /// - 移动端：📄 切换为全屏歌词视图，切换按钮与播放页底行「歌词」槽位对齐。
 class PlayerPage extends ConsumerStatefulWidget {
-  const PlayerPage({super.key});
+  const PlayerPage({super.key, this.anchor});
+
+  /// 迷你条中心的屏幕坐标：收起动画（[PullToDismiss]）围绕该点缩放进迷你条。
+  /// 为 null（如直接 push）时回退底部中央。
+  final Offset? anchor;
 
   @override
   ConsumerState<PlayerPage> createState() => _PlayerPageState();
@@ -47,6 +52,10 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
 
   /// 桌面端：右侧歌词分栏是否展开（默认收起，点「歌词」打开）。
   bool _lyricsPanelOpen = false;
+
+  /// 下拉 / 点收起条共用的收起动画控制器。
+  final GlobalKey<PullToDismissState> _dismissKey =
+      GlobalKey<PullToDismissState>();
 
   @override
   Widget build(BuildContext context) {
@@ -62,13 +71,26 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
       // 拖动时背景随整页移动，露出下方路由而非一块静态黑色底。
       backgroundColor: Colors.transparent,
       body: PullToDismiss(
+        key: _dismissKey,
         enabled: true,
         // 仅屏幕上方 60%（进度条上方一定距离）下拉才退出，避免与进度条拖动冲突。
         startAreaFraction: 0.6,
-        onDismiss: () => Navigator.of(context).maybePop(),
+        // 收起完成（pop）时迷你条回弹：页面收进迷你条后，迷你条弹一下。
+        onDismiss: () {
+          ref.read(miniPlayerBounceProvider.notifier).bump();
+          Navigator.of(context).maybePop();
+        },
+        // 围绕迷你条中心收进迷你条；拿不到锚点时回退右下/底部中央。
+        collapseAnchor: widget.anchor,
+        collapseAlignment: isDesktop
+            ? Alignment.bottomRight
+            : Alignment.bottomCenter,
         child: Stack(
           fit: StackFit.expand,
           children: [
+            // 实心兜底底色：播放页自身始终不透明，下层页面只在播放页缩小
+            // 露出的区域显示，绝不从播放页内部透出。
+            const ColoredBox(color: Colors.black),
             AnimatedPaletteBackground(
               seed: track?.id.hashCode ?? 0,
               isPlaying: state.isPlaying,
@@ -82,7 +104,8 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
                   const SizedBox(height: AppTokens.spaceS),
                   _CloseBar(
                     isDesktop: isDesktop,
-                    onTap: () => Navigator.of(context).maybePop(),
+                    // 顶部横线点按：走同一收起动画（含迷你条回弹）。
+                    onTap: () => _dismissKey.currentState?.collapse(),
                   ),
                   Expanded(
                     child: state.hasTrack

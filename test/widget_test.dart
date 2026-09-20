@@ -154,7 +154,10 @@ void main() {
     // 外层顶级页面 PageView（播放列表内部还有分类 PageView，取 PlaylistPage 的祖先）。
     final pageViewRect = tester.getRect(
       find
-          .ancestor(of: find.byType(PlaylistPage), matching: find.byType(PageView))
+          .ancestor(
+            of: find.byType(PlaylistPage),
+            matching: find.byType(PageView),
+          )
           .first,
     );
 
@@ -236,13 +239,19 @@ void main() {
     expect(find.byType(SettingsPage), findsOneWidget);
     expect(find.text('测试歌曲'), findsOneWidget);
 
-    // 点迷你条推入全屏播放页，迷你条被覆盖隐藏。
+    // 点迷你条推入全屏播放页。路由透明（opaque:false）：迷你条仍在树中、
+    // 被全屏播放页的实心背景盖住，命中测试应落在播放页而非迷你条。
     await tester.tap(find.byType(MiniPlayer));
     await tester.pumpAndSettle();
     expect(find.byType(PlayerPage), findsOneWidget);
-    expect(find.byType(MiniPlayer), findsNothing);
+    expect(find.byType(MiniPlayer), findsOneWidget);
+    final miniRender = tester.renderObject(find.byType(MiniPlayer));
+    final hits = tester
+        .hitTestOnBinding(tester.getCenter(find.byType(MiniPlayer)))
+        .path;
+    expect(hits.any((e) => e.target == miniRender), isFalse);
 
-    // 点收起条返回，迷你条恢复可见。
+    // 点收起条返回，迷你条恢复可见可交互。
     await tester.tap(find.byKey(const ValueKey('player-close-bar')));
     await tester.pumpAndSettle();
     expect(find.byType(PlayerPage), findsNothing);
@@ -257,7 +266,9 @@ void main() {
     await pumpApp(tester);
 
     // 导入行胶囊铺满侧栏宽度（去掉左右 padding 后贴近侧栏边缘）。
-    final itemRect = tester.getRect(find.byKey(const ValueKey('sidebar-import')));
+    final itemRect = tester.getRect(
+      find.byKey(const ValueKey('sidebar-import')),
+    );
     expect(itemRect.width, greaterThan(AppSideBar.width * 0.8));
 
     // 点导入行最右侧（仍在胶囊内，远离图标/文字）仍应切换页面。

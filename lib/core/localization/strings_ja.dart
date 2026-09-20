@@ -245,9 +245,6 @@ class AppStringsJa extends AppStrings {
   String get settingsLanguage => '言語';
 
   @override
-  String get settingsReduceMotion => '視差効果を減らす';
-
-  @override
   String get settingsPlayback => '再生';
 
   @override

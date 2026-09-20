@@ -7,12 +7,12 @@ import '../../../core/anim/app_curves.dart';
 /// 包裹子内容：手指向下拖动时内容**1:1 跟手**下移（仅当拉出屏幕高度后才
 /// 施加 0.25 阻尼），松手时
 /// - 未过阈值/速度不足：弹性回弹复位；
-/// - 超过阈值或快速下滑：按松手速度**飞出手感**的滑出动画，滑出屏幕后
-///   再触发 [onDismiss]（调用方执行 pop 收起页面）。
+/// - 超过阈值或快速下滑：执行**收起动画**——整页缩放收向 [collapseAlignment]
+///   （迷你播放条方向）+ 下移 + 淡出，完成后触发 [onDismiss]（调用方 pop 收起）。
 ///
-/// **全程可中断**：回弹/飞出动画进行中，手指重新按下会停住动画并接管，
-/// 已触发的退出随之取消——用户可以在任意时刻反悔。
-/// 移动端和桌面端都响应纵向手势；顶部小横条仍可点按收起。
+/// **全程可中断**：收起动画进行中，手指重新按下会停住动画并接管，已触发的
+/// 退出随之取消——用户可以在任意时刻反悔。
+/// 移动端和桌面端都响应纵向手势；顶部小横条仍可点按（经 [PullToDismissState.collapse]）收起。
 /// 通过 [startAreaFraction] 限制可发起下拉的屏幕区域（避免与进度条等冲突）。
 class PullToDismiss extends StatefulWidget {
   const PullToDismiss({
@@ -21,10 +21,19 @@ class PullToDismiss extends StatefulWidget {
     required this.onDismiss,
     this.enabled = true,
     this.startAreaFraction = 1.0,
+    this.onDismissStart,
+    this.collapseAnchor,
+    this.collapseAlignment = Alignment.bottomCenter,
+    this.collapseEndScale = 0.25,
+    this.collapseDuration = const Duration(milliseconds: 320),
   });
 
   final Widget child;
   final VoidCallback onDismiss;
+
+  /// 收起动画开始时的回调（用于触发迷你条回弹等）。
+  final VoidCallback? onDismissStart;
+
   final bool enabled;
 
   /// 允许发起下拉手势的屏幕高度比例（0..1，默认 1 = 全屏）。
@@ -32,12 +41,25 @@ class PullToDismiss extends StatefulWidget {
   /// 进度条拖动等其它手势冲突。
   final double startAreaFraction;
 
+  /// 收起动画的缩放锚点（迷你条中心，屏幕坐标）。为 null 时回退
+  /// [collapseAlignment] 对应的屏幕位置。
+  final Offset? collapseAnchor;
+
+  /// 收起动画收敛的锚点（迷你播放条所在方向），仅当 [collapseAnchor] 为 null 时使用。
+  final Alignment collapseAlignment;
+
+  /// 收起动画结束时的缩放。
+  final double collapseEndScale;
+
+  /// 收起动画时长（收向迷你条，刻意放慢以看清过程）。
+  final Duration collapseDuration;
+
   @override
-  State<PullToDismiss> createState() => _PullToDismissState();
+  State<PullToDismiss> createState() => PullToDismissState();
 }
 
-class _PullToDismissState extends State<PullToDismiss>
-    with SingleTickerProviderStateMixin {
+class PullToDismissState extends State<PullToDismiss>
+    with TickerProviderStateMixin {
   static const double _dismissThreshold = 120;
   static const double _velocityThreshold = 800;
 
@@ -45,9 +67,10 @@ class _PullToDismissState extends State<PullToDismiss>
   /// 往回拖动会因重复计算阻尼而无法真正跟手。
   double _raw = 0;
 
-  /// 是否正处于「滑出屏幕 → 即将 pop」的飞出阶段（可被手指接管取消）。
+  /// 是否正处于「收起 → 即将 pop」阶段（可被手指接管取消）。
   bool _dismissing = false;
 
+  /// 拖拽位移（跟手 / 回弹）。
   late final AnimationController _controller = AnimationController(
     vsync: this,
     duration: AppCurves.standardMotion,
@@ -56,8 +79,23 @@ class _PullToDismissState extends State<PullToDismiss>
     upperBound: double.infinity,
   );
 
+  /// 收起进度（0→1）：驱动 scale / 向下位移 / 淡出。
+  late final AnimationController _collapseController = AnimationController(
+    vsync: this,
+    duration: AppCurves.standardMotion,
+  );
+
+  @override
+  void initState() {
+    super.initState();
+    _collapseController.addStatusListener(_onCollapseStatus);
+  }
+
   @override
   void dispose() {
+    _collapseController
+      ..removeStatusListener(_onCollapseStatus)
+      ..dispose();
     _controller.dispose();
     super.dispose();
   }
@@ -88,11 +126,14 @@ class _PullToDismissState extends State<PullToDismiss>
       _active = false;
       return;
     }
-    // 手指重新按下：停住任何进行中的动画（回弹/飞出）并从此位置接管，
+    // 手指重新按下：停住任何进行中的动画（回弹/收起）并从此位置接管，
     // 同时取消已排定的退出动作 —— 动画全程可中断。
     _active = true;
     _dismissing = false;
     _controller.stop();
+    _collapseController.stop();
+    // 收起被接管：复位缩放/淡出，仅保留纯拖拽位移继续跟手。
+    _collapseController.value = 0;
     _raw = _rawOf(_controller.value).clamp(0.0, double.infinity);
   }
 
@@ -108,7 +149,7 @@ class _PullToDismissState extends State<PullToDismiss>
     final velocity = d.primaryVelocity ?? 0;
     final value = _controller.value;
     if (value > _dismissThreshold || velocity > _velocityThreshold) {
-      _flyOut(value, velocity);
+      _startCollapse(velocity);
     } else {
       _springBack();
     }
@@ -134,31 +175,44 @@ class _PullToDismissState extends State<PullToDismiss>
     );
   }
 
-  /// 滑出屏幕底部（带松手速度的飞出手感），完成后才触发 [PullToDismiss.onDismiss]。
-  void _flyOut(double value, double velocity) {
-    final target = MediaQuery.sizeOf(context).height;
+  /// 供外部触发收起（顶部收起条点按），与下拉共用同一收起动画。
+  void collapse() {
+    if (_dismissing) return;
+    _startCollapse(0);
+  }
+
+  /// 开始收起动画：整页围绕迷你条中心缩放收进迷你条（无淡入淡出），
+  /// 完成后触发 [PullToDismiss.onDismiss]（调用方执行 pop 收起页面）。
+  void _startCollapse(double velocity) {
     _dismissing = true;
+    widget.onDismissStart?.call();
     if (MediaQuery.disableAnimationsOf(context)) {
-      _controller.value = target;
-      widget.onDismiss();
+      // 置满触发 completed → onDismiss（单次）。
+      _collapseController.value = 1.0;
       return;
     }
-    // 松手速度越快、剩余距离越短 → 动画越短（0.4–0.6s），线性匀速
-    // 飞出，便于看清播放页下滑退出的过程。
-    final speed = velocity.abs().clamp(1200.0, 4000.0);
-    final remaining = (target - value).clamp(80.0, double.infinity);
-    final ms = (remaining / speed * 1000).round().clamp(400, 600);
-    _controller
-        .animateTo(
-          target,
-          duration: Duration(milliseconds: ms),
-          // 线性匀速飞出：避免 easeIn 起始近似停顿；跟手/取消逻辑不受影响。
-          curve: Curves.linear,
-        )
-        .then((_) {
-      // 若期间被手指接管（_dismissing == false），则取消退出。
-      if (mounted && _dismissing) widget.onDismiss();
-    });
+    // easeOutBack：非线性的 spring 手感，快速收缩并带微小回弹收进迷你条。
+    // 用 forward() + 在 builder 手动套曲线，保留过冲（animateTo 会钳制值）。
+    _collapseController
+      ..duration = widget.collapseDuration
+      ..forward(from: 0);
+  }
+
+  void _onCollapseStatus(AnimationStatus status) {
+    if (status != AnimationStatus.completed) return;
+    // 若期间被手指接管（_dismissing == false），则取消退出。
+    if (mounted && _dismissing) widget.onDismiss();
+  }
+
+  /// 收起时顺势下压的距离（收向底部迷你条）。
+  double get _collapseDown => MediaQuery.sizeOf(context).height * 0.15;
+
+  /// 缩放锚点：优先迷你条中心；否则按 [collapseAlignment] 取屏幕对应位置。
+  Offset _anchor(Size size) {
+    final explicit = widget.collapseAnchor;
+    if (explicit != null) return explicit;
+    final a = widget.collapseAlignment;
+    return Offset(size.width * (a.x + 1) / 2, size.height * (a.y + 1) / 2);
   }
 
   @override
@@ -170,11 +224,26 @@ class _PullToDismissState extends State<PullToDismiss>
       onVerticalDragEnd: _onEnd,
       onVerticalDragCancel: _onCancel,
       child: AnimatedBuilder(
-        animation: _controller,
-        builder: (context, child) => Transform.translate(
-          offset: Offset(0, _controller.value),
-          child: child,
-        ),
+        animation: Listenable.merge([_controller, _collapseController]),
+        builder: (context, child) {
+          final size = MediaQuery.sizeOf(context);
+          final t = _collapseController.value;
+          final drag = _controller.value;
+          // 手动套 easeOutBack：非线性的 spring 手感（保留过冲，收进迷你条带微回弹）。
+          final c = Curves.easeOutBack.transform(t);
+          // 收起：从 1 缩到 endScale，围绕迷你条中心缩放收进；无淡出。
+          final s = 1.0 + (widget.collapseEndScale - 1.0) * c;
+          final dy = drag + _collapseDown * c;
+          final anchor = _anchor(size);
+          return Transform(
+            transform: Matrix4.identity()
+              ..translateByDouble(0, dy, 0, 1)
+              ..translateByDouble(anchor.dx, anchor.dy, 0, 1)
+              ..scaleByDouble(s, s, 1, 1)
+              ..translateByDouble(-anchor.dx, -anchor.dy, 0, 1),
+            child: child,
+          );
+        },
         child: widget.child,
       ),
     );

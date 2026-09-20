@@ -245,9 +245,6 @@ class AppStringsEn extends AppStrings {
   String get settingsLanguage => 'Language';
 
   @override
-  String get settingsReduceMotion => 'Reduce Motion';
-
-  @override
   String get settingsPlayback => 'Playback';
 
   @override

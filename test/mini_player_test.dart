@@ -138,6 +138,80 @@ void main() {
     expect((afterX - beforeX).abs(), lessThan(1));
   });
 
+  testWidgets('移动端：拖动时仅歌名·歌手滑动，封面与按钮固定', (tester) async {
+    await pumpWithQueue(tester);
+
+    final glass = find
+        .ancestor(of: find.text('夜曲'), matching: find.byType(GlassOverlay))
+        .first;
+    final coverFinder = find.descendant(
+      of: glass,
+      matching: find.byIcon(CupertinoIcons.music_note),
+    );
+    final coverBefore = tester.getCenter(coverFinder.first).dx;
+    final nextBefore = tester
+        .getCenter(find.byKey(const ValueKey('mini-player-next')))
+        .dx;
+    final textBefore = tester.getCenter(find.text('夜曲')).dx;
+
+    final g = await tester.startGesture(
+      tester.getCenter(find.byType(MiniPlayer)),
+    );
+    await g.moveBy(const Offset(-40, 0));
+    await tester.pump();
+
+    // 仅文本跟手左移。
+    expect(tester.getCenter(find.text('夜曲')).dx - textBefore, lessThan(-20));
+    // 封面与下一曲按钮纹丝不动。
+    expect(
+      (tester.getCenter(coverFinder.first).dx - coverBefore).abs(),
+      lessThan(1),
+    );
+    expect(
+      (tester.getCenter(find.byKey(const ValueKey('mini-player-next'))).dx -
+              nextBefore)
+          .abs(),
+      lessThan(1),
+    );
+
+    await g.up();
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('移动端：切歌后歌名回到初始位置，不残留卡住', (tester) async {
+    await pumpWithQueue(tester);
+
+    final beforeX = tester.getCenter(find.text('夜曲')).dx;
+    await tester.fling(find.byType(MiniPlayer), const Offset(-300, 0), 1200);
+    await tester.pumpAndSettle();
+
+    expect(find.text('晨光'), findsOneWidget);
+    final afterX = tester.getCenter(find.text('晨光')).dx;
+    expect((afterX - beforeX).abs(), lessThan(1));
+  });
+
+  testWidgets('移动端：连续滑动后小幅拖动仍可回弹复位', (tester) async {
+    await pumpWithQueue(tester);
+
+    for (var i = 0; i < 3; i++) {
+      await tester.fling(find.byType(MiniPlayer), const Offset(-300, 0), 1200);
+      await tester.pumpAndSettle();
+    }
+    expect(find.text('晨光'), findsOneWidget);
+
+    final beforeX = tester.getCenter(find.text('晨光')).dx;
+    final g = await tester.startGesture(
+      tester.getCenter(find.byType(MiniPlayer)),
+    );
+    await g.moveBy(const Offset(30, 0));
+    await tester.pump();
+    await g.up();
+    await tester.pumpAndSettle();
+
+    final afterX = tester.getCenter(find.text('晨光')).dx;
+    expect((afterX - beforeX).abs(), lessThan(1));
+  });
+
   testWidgets('移动端：上滑进入完整播放页', (tester) async {
     await pumpWithQueue(tester);
 

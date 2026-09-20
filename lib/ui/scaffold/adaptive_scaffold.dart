@@ -8,6 +8,7 @@ import '../../core/platform/device_type.dart';
 import '../../core/theme/app_tokens.dart';
 import '../../services/audio/audio_controller.dart';
 import '../mini_player/mini_player.dart';
+import '../mini_player/mini_player_bounce.dart';
 import '../pages/import/import_page.dart';
 import 'app_side_bar.dart';
 import 'content_bottom_inset.dart';
@@ -35,6 +36,9 @@ class _AdaptiveScaffoldState extends ConsumerState<AdaptiveScaffold> {
 
   /// 桌面端迷你条悬浮于右下角，给页面内容留出的底部空隙（迷你条高约 70px + 偏移 + 间距）。
   static const double _miniPlayerClearance = 96;
+
+  /// 迷你条锚点（展开/收起缩放中心），push 前测量其真实矩形中心。
+  final GlobalKey _miniPlayerKey = GlobalKey();
 
   @override
   void dispose() {
@@ -82,28 +86,45 @@ class _AdaptiveScaffoldState extends ConsumerState<AdaptiveScaffold> {
     setState(() => _index = i);
   }
 
-  /// 推入全屏播放页（上滑式转场）。移动端与桌面端共用：覆盖整窗（含侧栏），
-  /// 收起由播放页顶部小横条负责（点按/下拉 → 弹路由回上一页）。
+  /// 推入全屏播放页。移动端与桌面端共用：覆盖整窗（含侧栏）。
+  ///
+  /// - 点按迷你条：迷你条做一次轻微按压反馈；
+  /// - 进场：从迷你条真实中心**展开**（矩阵缩放锚点对准迷你条中心，scale 0.25→1，
+  ///   `easeOutBack` spring 微过冲，**无淡入淡出**）；
+  /// - `opaque: false`：收起/展开时下层页面（含迷你条）随播放页缩小/长大
+  ///   逐步露出/盖住，形成「收进迷你条」与「从迷你条展开」的观感；
+  /// - 反向转场时长为 0：收起动画由 [PullToDismiss] 完成，pop 不再叠加过渡。
   void _pushPlayer() {
+    // 点按反馈：迷你条「动一下」（轻微按压）。
+    ref.read(miniPlayerPressProvider.notifier).press();
+    // 迷你条真实矩形中心 → 展开/收起的缩放锚点（拿不到则回退底部中央）。
+    final anchor = _miniPlayerCenter();
     Navigator.of(context).push(
       PageRouteBuilder(
-        pageBuilder: (_, _, _) => const PlayerPage(),
+        opaque: false,
+        pageBuilder: (_, _, _) => PlayerPage(anchor: anchor),
         transitionsBuilder: (_, animation, _, child) {
           final curved = CurvedAnimation(
             parent: animation,
-            curve: AppCurves.standard,
+            curve: Curves.easeOutBack,
           );
-          return SlideTransition(
-            position: Tween(
-              begin: const Offset(0, 1),
-              end: Offset.zero,
-            ).animate(curved),
-            child: FadeTransition(opacity: curved, child: child),
+          return _ScaleFromPoint(
+            anchor: anchor,
+            animation: curved,
+            child: child,
           );
         },
         transitionDuration: AppCurves.pageTransition,
+        reverseTransitionDuration: Duration.zero,
       ),
     );
+  }
+
+  /// 迷你条中心的屏幕坐标（供播放页展开/收起锚定）。
+  Offset? _miniPlayerCenter() {
+    final box = _miniPlayerKey.currentContext?.findRenderObject() as RenderBox?;
+    if (box == null || !box.attached || !box.hasSize) return null;
+    return box.localToGlobal(Offset.zero) + box.size.center(Offset.zero);
   }
 
   @override
@@ -127,7 +148,8 @@ class _AdaptiveScaffoldState extends ConsumerState<AdaptiveScaffold> {
     final strings = context.strings;
     final hasTrack = ref.watch(audioControllerProvider).hasTrack;
     // 底部悬浮玻璃占用的高度（迷你条 + 间隙 + 底栏），供页面滚动内容预留。
-    final overlayHeight = AppTokens.spaceS +
+    final overlayHeight =
+        AppTokens.spaceS +
         AppTokens.mobileMiniPlayerHeight +
         AppTokens.spaceS +
         AppTokens.mobileBottomControlHeight;
@@ -136,8 +158,10 @@ class _AdaptiveScaffoldState extends ConsumerState<AdaptiveScaffold> {
         top: false,
         child: ContentBottomInset(
           // 有迷你条时为整段悬浮高度，仅底栏时只预留底栏高度，再加底部呼吸。
-          inset: (hasTrack ? overlayHeight : AppTokens.spaceS +
-                  AppTokens.mobileBottomControlHeight) +
+          inset:
+              (hasTrack
+                  ? overlayHeight
+                  : AppTokens.spaceS + AppTokens.mobileBottomControlHeight) +
               AppTokens.spaceM,
           child: Stack(
             children: [
@@ -159,6 +183,7 @@ class _AdaptiveScaffoldState extends ConsumerState<AdaptiveScaffold> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     MiniPlayer(
+                      key: _miniPlayerKey,
                       deviceType: DeviceType.mobile,
                       onTap: _pushPlayer,
                       onTogglePlay: () => ref
@@ -233,6 +258,7 @@ class _AdaptiveScaffoldState extends ConsumerState<AdaptiveScaffold> {
                   right: 16,
                   bottom: 16,
                   child: MiniPlayer(
+                    key: _miniPlayerKey,
                     deviceType: DeviceType.desktop,
                     onTap: _pushPlayer,
                     onTogglePlay: () =>
@@ -248,6 +274,46 @@ class _AdaptiveScaffoldState extends ConsumerState<AdaptiveScaffold> {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// 播放页进场转场：围绕迷你条中心（[anchor]）做缩放展开（scale 0.25→1.0）。
+///
+/// 用 `Matrix4` 的 scale-around-point（`T(锚点)·S(s)·T(-锚点)`）把缩放中心钉在
+/// 迷你条上，页面从迷你条「生长」出来；拿不到锚点时回退屏幕底部中央。
+/// 配合 [Curves.easeOutBack]（非线性的 spring 手感）且无淡入淡出。
+class _ScaleFromPoint extends StatelessWidget {
+  const _ScaleFromPoint({
+    required this.anchor,
+    required this.animation,
+    required this.child,
+  });
+
+  final Offset? anchor;
+  final Animation<double> animation;
+  final Widget child;
+
+  static const double _beginScale = 0.25;
+
+  @override
+  Widget build(BuildContext context) {
+    final size = MediaQuery.sizeOf(context);
+    final fallback = Offset(size.width / 2, size.height * 0.85);
+    final center = anchor ?? fallback;
+    return AnimatedBuilder(
+      animation: animation,
+      builder: (context, child) {
+        final s = _beginScale + (1.0 - _beginScale) * animation.value;
+        return Transform(
+          transform: Matrix4.identity()
+            ..translateByDouble(center.dx, center.dy, 0, 1)
+            ..scaleByDouble(s, s, 1, 1)
+            ..translateByDouble(-center.dx, -center.dy, 0, 1),
+          child: child,
+        );
+      },
+      child: child,
     );
   }
 }

@@ -7,20 +7,18 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// 省电：光斑少、模糊轻、色相漂移弱；均衡：默认；绚彩：最多光斑 + 重模糊。
 enum BackgroundEffectLevel { powerSaver, balanced, vivid }
 
-/// 应用偏好：主题模式、语言、减弱动效、默认音量、背景效果档位。
+/// 应用偏好：主题模式、语言、默认音量、背景效果档位。
 @immutable
 class AppPreferences {
   const AppPreferences({
     this.themeMode = ThemeMode.system,
     this.locale,
-    this.reduceMotion = false,
     this.defaultVolume = 1.0,
     this.backgroundEffect = BackgroundEffectLevel.balanced,
   });
 
   final ThemeMode themeMode;
   final Locale? locale;
-  final bool reduceMotion;
 
   /// 默认播放音量（0.0–1.0），播放前应用到引擎。
   final double defaultVolume;
@@ -31,14 +29,12 @@ class AppPreferences {
   AppPreferences copyWith({
     ThemeMode? themeMode,
     Locale? locale,
-    bool? reduceMotion,
     double? defaultVolume,
     BackgroundEffectLevel? backgroundEffect,
   }) {
     return AppPreferences(
       themeMode: themeMode ?? this.themeMode,
       locale: locale ?? this.locale,
-      reduceMotion: reduceMotion ?? this.reduceMotion,
       defaultVolume: defaultVolume ?? this.defaultVolume,
       backgroundEffect: backgroundEffect ?? this.backgroundEffect,
     );
@@ -56,7 +52,6 @@ abstract class PreferencesStore {
 class SharedPreferencesStore implements PreferencesStore {
   static const _kThemeMode = 'prefs.themeMode';
   static const _kLocale = 'prefs.locale';
-  static const _kReduceMotion = 'prefs.reduceMotion';
   static const _kDefaultVolume = 'prefs.defaultVolume';
   static const _kBackgroundEffect = 'prefs.backgroundEffect';
 
@@ -67,10 +62,10 @@ class SharedPreferencesStore implements PreferencesStore {
     return AppPreferences(
       themeMode: _parseThemeMode(prefs.getString(_kThemeMode)),
       locale: localeRaw == null ? null : Locale(localeRaw),
-      reduceMotion: prefs.getBool(_kReduceMotion) ?? false,
       defaultVolume: prefs.getDouble(_kDefaultVolume) ?? 1.0,
-      backgroundEffect:
-          _parseBackgroundEffect(prefs.getString(_kBackgroundEffect)),
+      backgroundEffect: _parseBackgroundEffect(
+        prefs.getString(_kBackgroundEffect),
+      ),
     );
   }
 
@@ -84,7 +79,6 @@ class SharedPreferencesStore implements PreferencesStore {
     } else {
       await store.setString(_kLocale, locale.languageCode);
     }
-    await store.setBool(_kReduceMotion, prefs.reduceMotion);
     await store.setDouble(_kDefaultVolume, prefs.defaultVolume.clamp(0.0, 1.0));
     await store.setString(_kBackgroundEffect, prefs.backgroundEffect.name);
   }
@@ -105,14 +99,14 @@ class SharedPreferencesStore implements PreferencesStore {
 }
 
 /// 偏好存储注入点（测试用内存实现覆盖）。
-final preferencesStoreProvider =
-    Provider<PreferencesStore>((ref) => SharedPreferencesStore());
+final preferencesStoreProvider = Provider<PreferencesStore>(
+  (ref) => SharedPreferencesStore(),
+);
 
 /// 全局偏好控制器：启动时从 [preferencesStoreProvider] 载入，更改即持久化。
 class PreferencesController extends AsyncNotifier<AppPreferences> {
   @override
-  Future<AppPreferences> build() =>
-      ref.watch(preferencesStoreProvider).load();
+  Future<AppPreferences> build() => ref.watch(preferencesStoreProvider).load();
 
   Future<void> setThemeMode(ThemeMode mode) =>
       _mutate((p) => p.copyWith(themeMode: mode));
@@ -120,11 +114,8 @@ class PreferencesController extends AsyncNotifier<AppPreferences> {
   Future<void> setLocale(Locale? locale) =>
       _mutate((p) => p.copyWith(locale: locale));
 
-  Future<void> setReduceMotion(bool enabled) =>
-      _mutate((p) => p.copyWith(reduceMotion: enabled));
-
-  Future<void> setDefaultVolume(double volume) => _mutate(
-      (p) => p.copyWith(defaultVolume: volume.clamp(0.0, 1.0)));
+  Future<void> setDefaultVolume(double volume) =>
+      _mutate((p) => p.copyWith(defaultVolume: volume.clamp(0.0, 1.0)));
 
   Future<void> setBackgroundEffect(BackgroundEffectLevel level) =>
       _mutate((p) => p.copyWith(backgroundEffect: level));
@@ -140,4 +131,5 @@ class PreferencesController extends AsyncNotifier<AppPreferences> {
 /// 全局偏好 Provider。
 final preferencesProvider =
     AsyncNotifierProvider<PreferencesController, AppPreferences>(
-        PreferencesController.new);
+      PreferencesController.new,
+    );

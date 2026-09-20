@@ -97,7 +97,6 @@ abstract class AppStrings {
   String get settingsThemeDark;
   String get settingsThemeSystem;
   String get settingsLanguage;
-  String get settingsReduceMotion;
   String get settingsPlayback;
   String get settingsDefaultVolume;
   String get settingsEqualizer;

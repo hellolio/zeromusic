@@ -245,9 +245,6 @@ class AppStringsZh extends AppStrings {
   String get settingsLanguage => '语言';
 
   @override
-  String get settingsReduceMotion => '减弱动态效果';
-
-  @override
   String get settingsPlayback => '播放';
 
   @override
