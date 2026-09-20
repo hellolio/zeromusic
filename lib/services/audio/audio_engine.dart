@@ -1,3 +1,4 @@
+import 'equalizer.dart';
 import 'track.dart';
 
 /// 播放引擎抽象契约 —— 业务层的唯一播放依赖。
@@ -39,6 +40,10 @@ abstract interface class AudioEngine {
 
   /// 跳转到指定进度。
   Future<void> seek(Duration position);
+
+  /// 引擎级均衡器；平台/实现不支持时为 null（UI 降级为「不支持」展示）。
+  /// 实例在引擎构造后即存在（未激活时 [AudioEqualizer.parameters] 暂不完成）。
+  AudioEqualizer? get equalizer;
 
   /// 设置播放音量（0.0–1.0）。引擎尚未加载资源时为 no-op，不影响后续播放。
   Future<void> setVolume(double volume);

@@ -1,11 +1,17 @@
 import 'dart:async';
 
 import 'package:zeromusic/services/audio/audio_engine.dart';
+import 'package:zeromusic/services/audio/equalizer.dart';
 import 'package:zeromusic/services/audio/track.dart';
 
 /// 测试用内存播放引擎：记录所有调用、暴露可控流。
 /// 完全不触达真实平台播放器，供纯 Dart 与 widget 测试注入。
+/// [equalizer] 默认 null（模拟不支持均衡器的平台），需要时注入 FakeEqualizer。
 class FakeAudioEngine implements AudioEngine {
+  FakeAudioEngine({this.equalizer});
+
+  @override
+  final AudioEqualizer? equalizer;
   final StreamController<Duration> _position =
       StreamController<Duration>.broadcast();
   final StreamController<Duration> _duration =

@@ -254,6 +254,46 @@ class AppStringsEn extends AppStrings {
   String get settingsEqualizer => 'Equalizer';
 
   @override
+  String get eqEnable => 'Enable Equalizer';
+
+  @override
+  String get eqOn => 'On';
+
+  @override
+  String get eqOff => 'Off';
+
+  @override
+  String get eqUnsupported => 'Not supported';
+
+  @override
+  String get eqUnsupportedHint =>
+      'Equalizer is not supported on this platform';
+
+  @override
+  String get eqPlayToEnable => 'Start playback to adjust bands';
+
+  @override
+  String get eqReset => 'Reset';
+
+  @override
+  String get eqPresetFlat => 'Flat';
+
+  @override
+  String get eqPresetPop => 'Pop';
+
+  @override
+  String get eqPresetRock => 'Rock';
+
+  @override
+  String get eqPresetJazz => 'Jazz';
+
+  @override
+  String get eqPresetClassical => 'Classical';
+
+  @override
+  String get eqPresetElectronic => 'Electronic';
+
+  @override
   String get settingsBackground => 'Background Effect';
 
   @override

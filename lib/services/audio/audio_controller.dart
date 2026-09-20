@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../preferences/preferences_controller.dart';
 import 'audio_engine.dart';
 import 'audio_engine_provider.dart';
+import 'equalizer_controller.dart';
 import 'track.dart';
 
 /// 播放模式。
@@ -96,6 +97,11 @@ class AudioController extends Notifier<PlaybackState> {
   @override
   PlaybackState build() {
     _listenEngine();
+    // 保活均衡器控制器：App 启动即把已持久化的均衡器设置应用到引擎
+    // （本控制器随迷你条常驻，均衡器依附同一生命周期）。
+    // 必须用 listen 而非 watch：均衡器状态变化（参数就绪/偏好镜像）若触发
+    // 本控制器重建，build 返回的常量初态会把播放队列清空。
+    ref.listen(equalizerControllerProvider, (_, _) {});
     // 播放流只依赖引擎，缓存实例供监听回调使用（回调内禁止 Ref.read）。
     final engine = ref.read(audioEngineProvider);
     // 偏好（默认音量）变化时同步到引擎；加载完成/后续修改都会触发。

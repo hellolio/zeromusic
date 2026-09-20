@@ -254,6 +254,45 @@ class AppStringsZh extends AppStrings {
   String get settingsEqualizer => '均衡器 / 音质';
 
   @override
+  String get eqEnable => '启用均衡器';
+
+  @override
+  String get eqOn => '开';
+
+  @override
+  String get eqOff => '关';
+
+  @override
+  String get eqUnsupported => '不支持';
+
+  @override
+  String get eqUnsupportedHint => '当前平台不支持均衡器';
+
+  @override
+  String get eqPlayToEnable => '开始播放后可调节频段';
+
+  @override
+  String get eqReset => '重置';
+
+  @override
+  String get eqPresetFlat => '平直';
+
+  @override
+  String get eqPresetPop => '流行';
+
+  @override
+  String get eqPresetRock => '摇滚';
+
+  @override
+  String get eqPresetJazz => '爵士';
+
+  @override
+  String get eqPresetClassical => '古典';
+
+  @override
+  String get eqPresetElectronic => '电子';
+
+  @override
   String get settingsBackground => '背景效果';
 
   @override

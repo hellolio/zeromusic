@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -7,7 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// 省电：光斑少、模糊轻、色相漂移弱；均衡：默认；绚彩：最多光斑 + 重模糊。
 enum BackgroundEffectLevel { powerSaver, balanced, vivid }
 
-/// 应用偏好：主题模式、语言、默认音量、背景效果档位。
+/// 应用偏好：主题模式、语言、默认音量、背景效果档位、均衡器。
 @immutable
 class AppPreferences {
   const AppPreferences({
@@ -15,6 +17,8 @@ class AppPreferences {
     this.locale,
     this.defaultVolume = 1.0,
     this.backgroundEffect = BackgroundEffectLevel.balanced,
+    this.equalizerEnabled = false,
+    this.equalizerGains = const [],
   });
 
   final ThemeMode themeMode;
@@ -26,17 +30,28 @@ class AppPreferences {
   /// 播放页背景变色效果档位。
   final BackgroundEffectLevel backgroundEffect;
 
+  /// 均衡器开关（引擎不支持时仅作偏好记录，UI 降级展示）。
+  final bool equalizerEnabled;
+
+  /// 均衡器各频段增益（dB），按频段下标排列；空列表 = 全 0（平直）。
+  /// 与设备实际段数不一致时由均衡器控制器 pad 0 / 截断后应用。
+  final List<double> equalizerGains;
+
   AppPreferences copyWith({
     ThemeMode? themeMode,
     Locale? locale,
     double? defaultVolume,
     BackgroundEffectLevel? backgroundEffect,
+    bool? equalizerEnabled,
+    List<double>? equalizerGains,
   }) {
     return AppPreferences(
       themeMode: themeMode ?? this.themeMode,
       locale: locale ?? this.locale,
       defaultVolume: defaultVolume ?? this.defaultVolume,
       backgroundEffect: backgroundEffect ?? this.backgroundEffect,
+      equalizerEnabled: equalizerEnabled ?? this.equalizerEnabled,
+      equalizerGains: equalizerGains ?? this.equalizerGains,
     );
   }
 }
@@ -54,6 +69,8 @@ class SharedPreferencesStore implements PreferencesStore {
   static const _kLocale = 'prefs.locale';
   static const _kDefaultVolume = 'prefs.defaultVolume';
   static const _kBackgroundEffect = 'prefs.backgroundEffect';
+  static const _kEqualizerEnabled = 'prefs.equalizer.enabled';
+  static const _kEqualizerGains = 'prefs.equalizer.gains';
 
   @override
   Future<AppPreferences> load() async {
@@ -66,6 +83,8 @@ class SharedPreferencesStore implements PreferencesStore {
       backgroundEffect: _parseBackgroundEffect(
         prefs.getString(_kBackgroundEffect),
       ),
+      equalizerEnabled: prefs.getBool(_kEqualizerEnabled) ?? false,
+      equalizerGains: _parseEqualizerGains(prefs.getString(_kEqualizerGains)),
     );
   }
 
@@ -81,6 +100,8 @@ class SharedPreferencesStore implements PreferencesStore {
     }
     await store.setDouble(_kDefaultVolume, prefs.defaultVolume.clamp(0.0, 1.0));
     await store.setString(_kBackgroundEffect, prefs.backgroundEffect.name);
+    await store.setBool(_kEqualizerEnabled, prefs.equalizerEnabled);
+    await store.setString(_kEqualizerGains, jsonEncode(prefs.equalizerGains));
   }
 
   static ThemeMode _parseThemeMode(String? name) {
@@ -95,6 +116,18 @@ class SharedPreferencesStore implements PreferencesStore {
       if (level.name == name) return level;
     }
     return BackgroundEffectLevel.balanced;
+  }
+
+  /// 解析持久化的频段增益；损坏 JSON / 非列表 / 非数字一律回退空列表（平直）。
+  static List<double> _parseEqualizerGains(String? raw) {
+    if (raw == null) return const [];
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is! List) return const [];
+      return [for (final e in decoded) (e as num).toDouble()];
+    } catch (_) {
+      return const [];
+    }
   }
 }
 
@@ -119,6 +152,13 @@ class PreferencesController extends AsyncNotifier<AppPreferences> {
 
   Future<void> setBackgroundEffect(BackgroundEffectLevel level) =>
       _mutate((p) => p.copyWith(backgroundEffect: level));
+
+  Future<void> setEqualizerEnabled(bool enabled) =>
+      _mutate((p) => p.copyWith(equalizerEnabled: enabled));
+
+  /// 写入整列频段增益（dB）。调用方（均衡器控制器）负责按设备段数对齐。
+  Future<void> setEqualizerGains(List<double> gains) =>
+      _mutate((p) => p.copyWith(equalizerGains: List.unmodifiable(gains)));
 
   /// 乐观更新状态并异步落盘；加载完成前变更以默认值为基。
   Future<void> _mutate(AppPreferences Function(AppPreferences) change) async {

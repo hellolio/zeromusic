@@ -1,9 +1,12 @@
 import 'dart:async';
+import 'dart:io' show Platform;
 
 import 'package:audio_session/audio_session.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:just_audio/just_audio.dart';
 
 import 'audio_engine.dart';
+import 'equalizer.dart';
 import 'track.dart';
 
 /// [AudioEngine] 的 just_audio 原生实现。
@@ -12,6 +15,9 @@ import 'track.dart';
 /// - 解码能力取决于平台，不支持时经 [errorStream] 上报，由上层优雅回退。
 /// - 播放器实例懒创建：仅首次 [playSource] 才触达平台通道，纯 Dart / widget 测试
 ///   环境不创建真实播放器。
+/// - 均衡器：仅 Android 支持（just_audio 的 [AndroidEqualizer]），构造时即创建
+///   实例并包装为 [AudioEqualizer] 抽象（三态之「未就绪」依赖实例先于播放存在）；
+///   创建播放器时经 [AudioPipeline] 注入。其余平台 [equalizer] 为 null。
 class JustAudioEngine implements AudioEngine {
   JustAudioEngine();
 
@@ -20,6 +26,11 @@ class JustAudioEngine implements AudioEngine {
   StreamSubscription<Duration?>? _durationSub;
   StreamSubscription<bool>? _playingSub;
   StreamSubscription<PlayerState>? _playerStateSub;
+
+  /// Android 均衡器（构造即存在；与 just_audio 内部 `_isAndroid()` 门控一致）。
+  final AndroidEqualizer? _androidEqualizer =
+      (!kIsWeb && Platform.isAndroid) ? AndroidEqualizer() : null;
+  AudioEqualizer? _equalizer;
 
   final StreamController<Duration> _position =
       StreamController<Duration>.broadcast();
@@ -48,6 +59,13 @@ class JustAudioEngine implements AudioEngine {
   Stream<Object?> get errorStream => _error.stream;
 
   @override
+  AudioEqualizer? get equalizer {
+    final inner = _androidEqualizer;
+    if (inner == null) return null;
+    return _equalizer ??= _JustAudioEqualizer(inner);
+  }
+
+  @override
   Future<void> init() async {
     // 显式配置音频会话为「音乐播放」（iOS/macOS：AVAudioSession category =
     // playback），这是锁屏/息屏后继续出声的硬前提；配合 iOS
@@ -63,7 +81,13 @@ class JustAudioEngine implements AudioEngine {
 
   AudioPlayer _ensurePlayer() {
     if (_player case final player?) return player;
-    final player = AudioPlayer();
+    final equalizer = _androidEqualizer;
+    final player = AudioPlayer(
+      // Android 均衡器必须在创建播放器时注入管线，之后无法追加。
+      audioPipeline: equalizer == null
+          ? null
+          : AudioPipeline(androidAudioEffects: [equalizer]),
+    );
     _player = player;
 
     _playerStateSub = player.playerStateStream.listen((state) {
@@ -120,6 +144,9 @@ class JustAudioEngine implements AudioEngine {
 
   @override
   Future<void> dispose() async {
+    // dispose 为终态：再次播放会重建 AudioPlayer 并把同一 AndroidEqualizer
+    // 注入新播放器，触发 AudioEffect 重复挂载断言。请勿复用已释放的引擎
+    // （引擎随 audioEngineProvider 终生单例，替换时应整体新建）。
     await _positionSub?.cancel();
     await _durationSub?.cancel();
     await _playingSub?.cancel();
@@ -132,4 +159,54 @@ class JustAudioEngine implements AudioEngine {
     await _completed.close();
     await _error.close();
   }
+}
+
+/// just_audio [AndroidEqualizer] 的抽象包装：业务层不感知具体引擎类型。
+class _JustAudioEqualizer implements AudioEqualizer {
+  _JustAudioEqualizer(this._inner);
+
+  final AndroidEqualizer _inner;
+
+  @override
+  bool get enabled => _inner.enabled;
+
+  @override
+  Future<void> setEnabled(bool enabled) => _inner.setEnabled(enabled);
+
+  @override
+  Future<EqualizerParameters> get parameters async {
+    final p = await _inner.parameters;
+    return _JustAudioEqualizerParameters(p);
+  }
+}
+
+class _JustAudioEqualizerParameters implements EqualizerParameters {
+  _JustAudioEqualizerParameters(AndroidEqualizerParameters inner)
+      : minDecibels = inner.minDecibels,
+        maxDecibels = inner.maxDecibels,
+        bands = [for (final b in inner.bands) _JustAudioEqualizerBand(b)];
+
+  @override
+  final double minDecibels;
+
+  @override
+  final double maxDecibels;
+
+  @override
+  final List<EqualizerBand> bands;
+}
+
+class _JustAudioEqualizerBand implements EqualizerBand {
+  _JustAudioEqualizerBand(this._inner);
+
+  final AndroidEqualizerBand _inner;
+
+  @override
+  double get centerFrequency => _inner.centerFrequency;
+
+  @override
+  double get gain => _inner.gain;
+
+  @override
+  Future<void> setGain(double gain) => _inner.setGain(gain);
 }

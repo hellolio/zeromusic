@@ -1,14 +1,18 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:zeromusic/services/audio/equalizer_controller.dart';
 import 'package:zeromusic/services/preferences/preferences_controller.dart';
+import 'package:zeromusic/ui/pages/settings/equalizer_sheet.dart';
 import 'package:zeromusic/ui/pages/settings/settings_page.dart';
 
 import 'helpers.dart';
 import 'support/fake_audio_engine.dart';
 import 'support/fake_data_layer.dart';
+import 'support/fake_equalizer.dart';
 import 'support/in_memory_preferences_store.dart';
 
 void main() {
@@ -22,6 +26,8 @@ void main() {
         locale: Locale('ja'),
         defaultVolume: 0.35,
         backgroundEffect: BackgroundEffectLevel.vivid,
+        equalizerEnabled: true,
+        equalizerGains: [1.5, -2.0],
       );
       await store.save(prefs);
 
@@ -30,6 +36,8 @@ void main() {
       expect(loaded.locale?.languageCode, 'ja');
       expect(loaded.defaultVolume, closeTo(0.35, 1e-9));
       expect(loaded.backgroundEffect, BackgroundEffectLevel.vivid);
+      expect(loaded.equalizerEnabled, isTrue);
+      expect(loaded.equalizerGains, [1.5, -2.0]);
     });
 
     test('空库读默认值', () async {
@@ -41,6 +49,18 @@ void main() {
       expect(loaded.locale, isNull);
       expect(loaded.defaultVolume, 1.0);
       expect(loaded.backgroundEffect, BackgroundEffectLevel.balanced);
+      expect(loaded.equalizerEnabled, isFalse);
+      expect(loaded.equalizerGains, isEmpty);
+    });
+
+    test('TC-EQ-09 损坏 gains JSON 回退空列表', () async {
+      SharedPreferences.setMockInitialValues({
+        'prefs.equalizer.gains': '{broken',
+      });
+      final store = SharedPreferencesStore();
+
+      final loaded = await store.load();
+      expect(loaded.equalizerGains, isEmpty);
     });
   });
 
@@ -95,7 +115,17 @@ void main() {
     expect(find.text('System'), findsOneWidget);
     expect(find.text('English'), findsOneWidget);
     expect(find.text('1.0.0'), findsOneWidget);
-    expect(find.text('Coming soon'), findsOneWidget);
+    // 均衡器：默认 FakeAudioEngine 无均衡器（不支持平台），行值降级展示。
+    // 行内断言：'Coming soon' 仍被导入页使用，不能全局断言消失。
+    final eqRow = find.byKey(const ValueKey('settings-equalizer'));
+    expect(
+      find.descendant(of: eqRow, matching: find.text('Not supported')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: eqRow, matching: find.text('Coming soon')),
+      findsNothing,
+    );
   });
 
   testWidgets('TC-02/03 主题浅色/深色切换即时生效并持久化', (tester) async {
@@ -237,5 +267,145 @@ void main() {
 
     expect(find.text('Power Saving'), findsOneWidget);
     expect(prefsAt(tester).backgroundEffect, BackgroundEffectLevel.powerSaver);
+  });
+
+  group('均衡器', () {
+    /// 弹层内的滑杆（避开设置页底层的音量滑杆）。
+    Finder bandSlider(int index) => find.descendant(
+          of: find.byType(EqualizerSheet),
+          matching: find.byKey(ValueKey('equalizer-band-$index')),
+        );
+
+    Future<void> openSheet(WidgetTester tester) async {
+      await tester.tap(find.byKey(const ValueKey('settings-equalizer')));
+      await tester.pumpAndSettle();
+      expect(find.byType(EqualizerSheet), findsOneWidget);
+    }
+
+    testWidgets('TC-EQ-01 不支持平台降级：行值与弹层说明', (tester) async {
+      await pumpSettings(tester);
+
+      expect(find.text('Not supported'), findsOneWidget);
+      await openSheet(tester);
+
+      expect(
+        find.text('Equalizer is not supported on this platform'),
+        findsOneWidget,
+      );
+      expect(find.byType(CupertinoSwitch), findsNothing);
+      expect(
+        find.descendant(
+          of: find.byType(EqualizerSheet),
+          matching: find.byType(Slider),
+        ),
+        findsNothing,
+      );
+    });
+
+    testWidgets('TC-EQ-02 未就绪：开关可用并提示先播放', (tester) async {
+      final eq = FakeEqualizer(autoReady: false);
+      final store = InMemoryPreferencesStore();
+      await pumpSettings(tester, engine: FakeAudioEngine(equalizer: eq), store: store);
+
+      expect(find.text('Off'), findsOneWidget);
+      await openSheet(tester);
+
+      expect(find.text('Start playback to adjust bands'), findsOneWidget);
+      expect(bandSlider(0), findsNothing);
+
+      await tester.tap(find.byKey(const ValueKey('equalizer-switch')));
+      await tester.pumpAndSettle();
+
+      expect(prefsAt(tester).equalizerEnabled, isTrue);
+      expect(store.lastSaved.equalizerEnabled, isTrue);
+      expect(eq.enabled, isTrue);
+      expect(find.text('On'), findsOneWidget);
+    });
+
+    testWidgets('TC-EQ-03 就绪：渲染滑杆，拖动写偏好并同步引擎', (tester) async {
+      final eq = FakeEqualizer();
+      final store = InMemoryPreferencesStore(
+        const AppPreferences(equalizerEnabled: true),
+      );
+      await pumpSettings(tester, engine: FakeAudioEngine(equalizer: eq), store: store);
+      await openSheet(tester);
+
+      // 5 条频段滑杆 + 预设 + 重置渲染。
+      for (var i = 0; i < 5; i++) {
+        expect(bandSlider(i), findsOneWidget);
+      }
+      expect(find.text('Rock'), findsOneWidget);
+      expect(find.text('Reset'), findsOneWidget);
+      expect(find.text('60Hz'), findsOneWidget);
+      expect(find.text('14kHz'), findsOneWidget);
+
+      await tester.drag(bandSlider(0), const Offset(60, 0));
+      await tester.pumpAndSettle();
+
+      final gains = prefsAt(tester).equalizerGains;
+      expect(gains, hasLength(5));
+      expect(gains[0], greaterThan(0));
+      expect(eq.bands[0].gain, closeTo(gains[0], 1e-9));
+    });
+
+    testWidgets('TC-EQ-04 预设一键应用', (tester) async {
+      final eq = FakeEqualizer();
+      await pumpSettings(
+        tester,
+        engine: FakeAudioEngine(equalizer: eq),
+        store: InMemoryPreferencesStore(
+          const AppPreferences(equalizerEnabled: true),
+        ),
+      );
+      await openSheet(tester);
+
+      await tester.tap(find.byKey(const ValueKey('equalizer-preset-rock')));
+      await tester.pumpAndSettle();
+
+      expect(prefsAt(tester).equalizerGains, EqualizerPreset.rock.curve);
+      expect(
+        [for (final b in eq.bands) b.gain],
+        EqualizerPreset.rock.curve,
+      );
+    });
+
+    testWidgets('TC-EQ-05 重置为平直', (tester) async {
+      final eq = FakeEqualizer();
+      await pumpSettings(
+        tester,
+        engine: FakeAudioEngine(equalizer: eq),
+        store: InMemoryPreferencesStore(
+          const AppPreferences(
+            equalizerEnabled: true,
+            equalizerGains: [3, 2, -1, 2, 4],
+          ),
+        ),
+      );
+      await openSheet(tester);
+
+      await tester.tap(find.byKey(const ValueKey('equalizer-reset')));
+      await tester.pumpAndSettle();
+
+      expect(prefsAt(tester).equalizerGains, List.filled(5, 0.0));
+      expect([for (final b in eq.bands) b.gain], List.filled(5, 0.0));
+    });
+
+    testWidgets('TC-EQ-06 启动即应用已持久化设置（不开弹层）', (tester) async {
+      final eq = FakeEqualizer();
+      await pumpSettings(
+        tester,
+        engine: FakeAudioEngine(equalizer: eq),
+        store: InMemoryPreferencesStore(
+          const AppPreferences(
+            equalizerEnabled: true,
+            equalizerGains: [1, 2, 3, 4, 5],
+          ),
+        ),
+      );
+
+      expect(eq.enabled, isTrue);
+      expect([for (final b in eq.bands) b.gain], [1.0, 2.0, 3.0, 4.0, 5.0]);
+      expect(find.text('On'), findsOneWidget);
+    });
   });
 }

@@ -7,8 +7,10 @@ import '../../../core/localization/app_strings.dart';
 import '../../../core/localization/localizations_delegate.dart';
 import '../../../core/platform/device_type.dart';
 import '../../../core/theme/app_tokens.dart';
+import '../../../services/audio/equalizer_controller.dart';
 import '../../../services/preferences/preferences_controller.dart';
 import '../../scaffold/content_bottom_inset.dart';
+import 'equalizer_sheet.dart';
 import 'settings_sheets.dart';
 
 /// 设置页面：主题、语言（中/英/日）、默认音量、背景效果、关于。
@@ -65,7 +67,11 @@ class SettingsPage extends ConsumerWidget {
           key: const ValueKey('settings-equalizer'),
           icon: CupertinoIcons.slider_horizontal_3,
           label: strings.settingsEqualizer,
-          value: strings.importComingSoon,
+          value: equalizerValueLabel(
+            strings,
+            ref.watch(equalizerControllerProvider),
+          ),
+          onTap: () => showEqualizerSheet(context),
         ),
         _SettingsTile(
           key: const ValueKey('settings-background-effect'),

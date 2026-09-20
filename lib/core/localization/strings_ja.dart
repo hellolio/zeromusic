@@ -254,6 +254,45 @@ class AppStringsJa extends AppStrings {
   String get settingsEqualizer => 'イコライザー';
 
   @override
+  String get eqEnable => 'イコライザーを有効化';
+
+  @override
+  String get eqOn => 'オン';
+
+  @override
+  String get eqOff => 'オフ';
+
+  @override
+  String get eqUnsupported => '未対応';
+
+  @override
+  String get eqUnsupportedHint => 'このプラットフォームはイコライザーに未対応です';
+
+  @override
+  String get eqPlayToEnable => '再生を開始すると調整できます';
+
+  @override
+  String get eqReset => 'リセット';
+
+  @override
+  String get eqPresetFlat => 'フラット';
+
+  @override
+  String get eqPresetPop => 'ポップ';
+
+  @override
+  String get eqPresetRock => 'ロック';
+
+  @override
+  String get eqPresetJazz => 'ジャズ';
+
+  @override
+  String get eqPresetClassical => 'クラシック';
+
+  @override
+  String get eqPresetElectronic => 'エレクトロ';
+
+  @override
   String get settingsBackground => '背景効果';
 
   @override
