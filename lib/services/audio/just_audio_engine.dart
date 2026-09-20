@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:audio_session/audio_session.dart';
 import 'package:just_audio/just_audio.dart';
 
 import 'audio_engine.dart';
@@ -48,7 +49,16 @@ class JustAudioEngine implements AudioEngine {
 
   @override
   Future<void> init() async {
-    // just_audio 无需额外初始化。
+    // 显式配置音频会话为「音乐播放」（iOS/macOS：AVAudioSession category =
+    // playback），这是锁屏/息屏后继续出声的硬前提；配合 iOS
+    // UIBackgroundModes=audio 与 macOS 关闭 App Nap 生效。
+    // 配置失败不阻塞播放（降级为普通前台播放）。
+    try {
+      final session = await AudioSession.instance;
+      await session.configure(const AudioSessionConfiguration.music());
+    } catch (_) {
+      // 平台不支持（如纯 Dart 测试环境）时静默降级。
+    }
   }
 
   AudioPlayer _ensurePlayer() {

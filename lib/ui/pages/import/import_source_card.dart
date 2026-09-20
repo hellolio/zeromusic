@@ -95,7 +95,9 @@ class _ImportSourceCardState extends State<ImportSourceCard> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Flexible(
+                          // Expanded（而非 Flexible）：窄屏两列布局下卡片
+                          // 宽度不足时强制文本收缩省略，避免 Row 溢出报错。
+                          Expanded(
                             child: Text(
                               source.label(strings),
                               maxLines: 2,
@@ -111,22 +113,29 @@ class _ImportSourceCardState extends State<ImportSourceCard> {
                           ),
                           if (!available) ...[
                             const SizedBox(width: AppTokens.spaceS),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: AppTokens.spaceS,
-                                vertical: 2,
-                              ),
-                              decoration: BoxDecoration(
-                                color: Colors.black.withValues(alpha: 0.28),
-                                borderRadius:
-                                    BorderRadius.circular(AppTokens.radiusPill),
-                              ),
-                              child: Text(
-                                strings.importComingSoon,
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .labelSmall
-                                    ?.copyWith(color: Colors.white),
+                            // 胶囊同样参与弹性收缩：窄卡片/长文案时省略号截断，
+                            // 与 Expanded 文本一起保证 Row 永不溢出。
+                            Flexible(
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: AppTokens.spaceS,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.black.withValues(alpha: 0.28),
+                                  borderRadius: BorderRadius.circular(
+                                    AppTokens.radiusPill,
+                                  ),
+                                ),
+                                child: Text(
+                                  strings.importComingSoon,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .labelSmall
+                                      ?.copyWith(color: Colors.white),
+                                ),
                               ),
                             ),
                           ],

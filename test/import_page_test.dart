@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:riverpod/misc.dart' show Override;
@@ -99,7 +100,9 @@ void main() {
     for (final label in ['Local files', 'Cloud', 'Bluetooth', 'Wi-Fi', 'Mac', 'Windows']) {
       expect(find.text(label), findsOneWidget);
     }
-    expect(find.text('Pick a source below to start importing'), findsOneWidget);
+    // 空态提示（云下载图标 + 文案）已按需求移除：无任务时不再显示占位内容。
+    expect(find.text('Pick a source below to start importing'), findsNothing);
+    expect(find.byIcon(CupertinoIcons.cloud_download), findsNothing);
   });
 
   testWidgets('桌面端：显示全部来源卡片', (tester) async {
@@ -266,10 +269,11 @@ void main() {
     await tester.tap(find.text('Local files'));
     await tester.pumpAndSettle();
 
-    // 完成的任务行（文件名 + 进度条）不残留，回到空状态。
+    // 完成的任务行（文件名 + 进度条）不残留；
+    // 空态提示已按需求移除，回到无任务态时不显示任何占位内容。
     expect(find.byKey(const ValueKey('taskProgressBar')), findsNothing);
     expect(find.text('test.mp3'), findsNothing);
-    expect(find.text('Pick a source below to start importing'), findsOneWidget);
+    expect(find.text('Pick a source below to start importing'), findsNothing);
     expect(find.byType(ImportTaskTile), findsNothing);
   });
 

@@ -86,6 +86,16 @@ class _AdaptiveScaffoldState extends ConsumerState<AdaptiveScaffold> {
     setState(() => _index = i);
   }
 
+  /// 底栏拖拽中的分数页码 → 页面内容跟手预览（Apple Music 式联动）。
+  void _onNavScrub(double value) {
+    if (!_pageController.hasClients) return;
+    final max = _pageController.position.maxScrollExtent;
+    if (max <= 0) return;
+    // 等宽页面：分数页码线性映射到滚动偏移。
+    final pages = _mobilePages.length;
+    _pageController.jumpTo((value / (pages - 1) * max).clamp(0.0, max));
+  }
+
   /// 推入全屏播放页。移动端与桌面端共用：覆盖整窗（含侧栏）。
   ///
   /// - 点按迷你条：迷你条做一次轻微按压反馈；
@@ -202,6 +212,7 @@ class _AdaptiveScaffoldState extends ConsumerState<AdaptiveScaffold> {
                     GlassNavBar(
                       selectedIndex: _index,
                       onSelected: _onNavSelected,
+                      onScrub: _onNavScrub,
                       destinations: [
                         GlassNavDestination(
                           icon: Icons.library_music_outlined,

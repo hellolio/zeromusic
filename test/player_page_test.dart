@@ -9,6 +9,7 @@ import 'package:riverpod/misc.dart' show Override;
 import 'package:zeromusic/services/audio/audio_controller.dart';
 import 'package:zeromusic/services/audio/track.dart';
 import 'package:zeromusic/services/preferences/preferences_controller.dart';
+import 'package:zeromusic/ui/components/glass_overlay.dart';
 import 'package:zeromusic/ui/pages/player/player_background.dart';
 import 'package:zeromusic/ui/pages/player/player_page.dart';
 import 'package:zeromusic/ui/scaffold/adaptive_scaffold.dart';
@@ -299,6 +300,39 @@ void main() {
     expect(state.currentTrack?.title, '晨光');
     expect(engine.lastPlayed?.id, 'b');
     expect(find.byType(ListTile), findsNothing);
+  });
+
+  testWidgets('移动端：队列弹窗高度不超过屏高 50%，超出内容滚动', (tester) async {
+    // 移动端视口（390 × 844）：高度上限 = 422。
+    final engine = FakeAudioEngine();
+    await pumpApp(
+      tester,
+      engine: engine,
+      viewport: const Size(390, 844),
+      overrides: fakeDataLayerOverrides(FakeDataLayer(seed: const [])),
+    );
+    // 20 首曲目：内容远超上限，验证钳制生效。
+    final queue = List.generate(20, (i) => Track(id: 'q$i', title: '曲$i'));
+    ProviderScope.containerOf(
+      tester.element(find.byType(AdaptiveScaffold)),
+    ).read(audioControllerProvider.notifier).playQueue(queue);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byType(MiniPlayer));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('player-queue-button')));
+    await tester.pumpAndSettle();
+
+    // 用队列行（ListTile）定位弹窗玻璃体：迷你条/歌名区不含 ListTile，无歧义。
+    final rect = tester.getRect(
+      find.ancestor(
+        of: find.widgetWithText(ListTile, '曲0'),
+        matching: find.byType(GlassOverlay),
+      ),
+    );
+    expect(rect.height, lessThanOrEqualTo(844 * 0.5 + 0.5));
+    // 弹窗宽度同时受 80% 屏宽钳制。
+    expect(rect.width, lessThanOrEqualTo(390 * 0.8 + 0.5));
   });
 
   testWidgets('TC-11 歌词面板占位', (tester) async {

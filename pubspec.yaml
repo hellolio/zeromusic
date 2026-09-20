@@ -45,6 +45,9 @@ dependencies:
   audio_metadata_reader: ^1.7.1
   path_provider: ^2.1.6
   just_audio: ^0.10.0
+  # 音频会话配置（just_audio 官方配套）：iOS/macOS 显式声明 playback 类别，
+  # 是锁屏/息屏后继续出声的硬前提。
+  audio_session: ^0.2.0
   shared_preferences: ^2.3.0
   path: ^1.9.1
 

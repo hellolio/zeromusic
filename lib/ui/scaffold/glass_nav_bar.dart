@@ -20,12 +20,20 @@ class GlassNavDestination {
 /// 移动端液态玻璃底栏：悬浮胶囊（左右留边距、左右端圆角 = 半高），
 /// 高度与迷你播放条一致；选中项背后的玻璃指示胶囊随切换 spring 滑动，
 /// 图标与文字颜色同步过渡（对标 Apple Music 的切换动效）。
-class GlassNavBar extends StatelessWidget {
+///
+/// 两种切换方式：
+/// - 点按导航项；
+/// - **横向拖拽底栏**：水滴指示胶囊作为「聚焦把手」跟手滑移（底栏本身不动），
+///   并做液体拉伸形变（拖得越远拉得越长）；页面经 [onScrub] 实时跟随滑块
+///   位置预览。手指离开后，滑块 spring 吸附到最近的选项，页面切换到该页；
+///   快拂则带速度滑向速度方向的下一个档位（至少移动一项）。
+class GlassNavBar extends StatefulWidget {
   const GlassNavBar({
     super.key,
     required this.selectedIndex,
     required this.onSelected,
     required this.destinations,
+    this.onScrub,
   });
 
   /// 胶囊高度（与迷你播放条一致）；圆角取半高 → 左右倒圆角。
@@ -39,59 +47,169 @@ class GlassNavBar extends StatelessWidget {
   final ValueChanged<int> onSelected;
   final List<GlassNavDestination> destinations;
 
+  /// 拖动中的分数页码回调；不传则仅底栏内部动画，不联动页面。
+  final ValueChanged<double>? onScrub;
+
+  @override
+  State<GlassNavBar> createState() => _GlassNavBarState();
+}
+
+class _GlassNavBarState extends State<GlassNavBar> {
+  /// 快拂判定速度阈值（逻辑像素/秒）：超过则沿方向至少翻一页。
+  static const double _flingSpeed = 500;
+
+  /// 液体形变最大水平拉伸量（垂直按比例压扁）。
+  static const double _maxStretch = 0.22;
+
+  /// 拖动中的分数下标（越界部分已做橡皮筋阻尼）；null = 未拖动。
+  double? _scrub;
+
+  /// 拖动期间指示胶囊的拉伸目标（0.._maxStretch），松手回弹为 0。
+  double _stretchTarget = 0;
+
+  int get _highlightIndex {
+    final scrub = _scrub;
+    if (scrub == null) return widget.selectedIndex;
+    return scrub.round().clamp(0, widget.destinations.length - 1);
+  }
+
+  /// 越界拖动施加橡皮筋阻尼：只跟随越界量的 18%。
+  double _rubberband(double value) {
+    final max = widget.destinations.length - 1;
+    if (value < 0) return value * 0.18;
+    if (value > max) return max + (value - max) * 0.18;
+    return value;
+  }
+
+  void _onDragStart(DragStartDetails details) {
+    setState(() {
+      _scrub = widget.selectedIndex.toDouble();
+      _stretchTarget = 0;
+    });
+  }
+
+  void _onDragUpdate(DragUpdateDetails details, double itemWidth) {
+    final scrub = _scrub;
+    if (scrub == null) return;
+    // 滑块作为「聚焦把手」跟手：手指向哪滑，滑块就滑向哪
+    //（dx > 0 → 滑块右移 → 指向更大下标）。底栏本身保持不动。
+    final next = _rubberband(scrub + details.delta.dx / itemWidth);
+    setState(() {
+      _scrub = next;
+      // 拉伸量随离开当前项的距离增大，形成「拉果冻」的液态手感。
+      final travel = (next - widget.selectedIndex).abs().clamp(0.0, 1.0);
+      _stretchTarget = _maxStretch * travel;
+    });
+    widget.onScrub?.call(next.clamp(0.0, (widget.destinations.length - 1).toDouble()));
+  }
+
+  void _onDragEnd(DragEndDetails details) {
+    final scrub = _scrub;
+    if (scrub == null) return;
+    final velocity = details.primaryVelocity ?? 0;
+    final count = widget.destinations.length;
+    int target;
+    if (velocity.abs() > _flingSpeed) {
+      // 快拂：滑块带速度滑向速度方向的下一个档位（至少移动一项；
+      // 已越过更远项时不回跳）。
+      target = (velocity > 0 ? scrub.ceil() : scrub.floor())
+          .clamp(0, count - 1);
+    } else {
+      // 慢拖松手：吸附到最近项。
+      target = scrub.round().clamp(0, count - 1);
+    }
+    setState(() {
+      _scrub = null;
+      _stretchTarget = 0;
+    });
+    widget.onSelected(target);
+  }
+
+  void _onDragCancel() {
+    if (_scrub == null) return;
+    setState(() {
+      _scrub = null;
+      _stretchTarget = 0;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: height,
+      height: GlassNavBar.height,
       child: GlassOverlay(
-        radius: height / 2,
+        radius: GlassNavBar.height / 2,
         blur: 10,
         child: LayoutBuilder(
           builder: (context, constraints) {
             final theme = Theme.of(context);
             final isDark = theme.brightness == Brightness.dark;
-            final count = destinations.length;
+            final count = widget.destinations.length;
             final itemWidth = constraints.maxWidth / count;
-            return Stack(
-              children: [
-                // 滑动玻璃指示胶囊：在项间 spring 滑移。
-                AnimatedPositioned(
-                  duration: AppCurves.standardMotion,
-                  curve: AppCurves.spring,
-                  left:
-                      selectedIndex * itemWidth + (itemWidth - _pillWidth) / 2,
-                  top: (height - _pillHeight) / 2,
-                  width: _pillWidth,
-                  height: _pillHeight,
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      // 中性白底胶囊：与玻璃背景同色系，不带蓝色色相；
-                      // 选中强调色仅由下方图标/文字（accent）承担。
-                      color: Colors.white.withValues(
-                        alpha: isDark ? 0.12 : 0.45,
+            final scrub = _scrub;
+            // 指示胶囊位置：拖动时跟手（分数下标），静止时吸附选中项。
+            final pillLeft =
+                (scrub ?? widget.selectedIndex) * itemWidth +
+                    (itemWidth - GlassNavBar._pillWidth) / 2;
+            return GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onHorizontalDragStart: _onDragStart,
+              onHorizontalDragUpdate: (d) => _onDragUpdate(d, itemWidth),
+              onHorizontalDragEnd: _onDragEnd,
+              onHorizontalDragCancel: _onDragCancel,
+              child: Stack(
+                children: [
+                  // 滑动玻璃指示胶囊：拖动中零时长直跟手，松手 spring 吸附。
+                  AnimatedPositioned(
+                    duration: scrub != null ? Duration.zero : AppCurves.standardMotion,
+                    curve: AppCurves.spring,
+                    left: pillLeft,
+                    top: (GlassNavBar.height - GlassNavBar._pillHeight) / 2,
+                    width: GlassNavBar._pillWidth,
+                    height: GlassNavBar._pillHeight,
+                    child: TweenAnimationBuilder<double>(
+                      tween: Tween(end: _stretchTarget),
+                      duration: AppCurves.quickMotion,
+                      curve: AppCurves.quick,
+                      builder: (context, stretch, child) => Transform(
+                        alignment: Alignment.center,
+                        transform: Matrix4.identity()
+                          ..scaleByDouble(1.0 + stretch, 1.0 - stretch * 0.35, 1, 1),
+                        child: child,
                       ),
-                      borderRadius: BorderRadius.circular(_pillHeight / 2),
-                      border: Border.all(
-                        color: Colors.white.withValues(
-                          alpha: isDark ? 0.10 : 0.45,
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          // 中性白底胶囊：与玻璃背景同色系，不带蓝色色相；
+                          // 选中强调色仅由下方图标/文字（accent）承担。
+                          color: Colors.white.withValues(
+                            alpha: isDark ? 0.12 : 0.45,
+                          ),
+                          borderRadius: BorderRadius.circular(
+                            GlassNavBar._pillHeight / 2,
+                          ),
+                          border: Border.all(
+                            color: Colors.white.withValues(
+                              alpha: isDark ? 0.10 : 0.45,
+                            ),
+                          ),
                         ),
                       ),
                     ),
                   ),
-                ),
-                Row(
-                  children: [
-                    for (var i = 0; i < count; i++)
-                      Expanded(
-                        child: _NavItem(
-                          destination: destinations[i],
-                          selected: i == selectedIndex,
-                          onTap: () => onSelected(i),
+                  Row(
+                    children: [
+                      for (var i = 0; i < count; i++)
+                        Expanded(
+                          child: _NavItem(
+                            destination: widget.destinations[i],
+                            selected: i == _highlightIndex,
+                            onTap: () => widget.onSelected(i),
+                          ),
                         ),
-                      ),
-                  ],
-                ),
-              ],
+                    ],
+                  ),
+                ],
+              ),
             );
           },
         ),

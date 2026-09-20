@@ -1,4 +1,3 @@
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -112,8 +111,7 @@ class _ImportPageState extends ConsumerState<ImportPage> {
           if (visibleTasks.isNotEmpty) ...[
             _SectionLabel(strings.importTasksHeader),
             for (final task in visibleTasks) _buildTaskTile(ref, task),
-          ] else
-            _buildEmpty(context, strings),
+          ],
         ],
       ),
     );
@@ -158,29 +156,6 @@ class _ImportPageState extends ConsumerState<ImportPage> {
     return ImportTaskTile(
       task: task,
       onRetry: () => ref.read(importControllerProvider.notifier).retry(task.id),
-    );
-  }
-
-  Widget _buildEmpty(BuildContext context, AppStrings strings) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 48),
-      child: Column(
-        children: [
-          Icon(
-            CupertinoIcons.cloud_download,
-            size: 48,
-            color: Theme.of(context).colorScheme.onSecondary,
-          ),
-          const SizedBox(height: AppTokens.spaceM),
-          Text(
-            strings.importEmpty,
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: Theme.of(context).colorScheme.onSecondary,
-                ),
-          ),
-        ],
-      ),
     );
   }
 }

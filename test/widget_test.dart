@@ -199,6 +199,50 @@ void main() {
     expect(find.byType(PlaylistPage), findsOneWidget);
   });
 
+  testWidgets('移动端：拖拽底栏切换页面，滑块跟手预览（Apple Music 式）', (tester) async {
+    await pumpApp(tester);
+
+    expect(find.byType(PlaylistPage), findsOneWidget);
+
+    // 按住底栏向右拖：水滴滑块作为「聚焦把手」跟手右移，
+    // 页面实时跟随滑块位置预览（未松手不落定）。
+    // 注：测试框架中手势 update 延迟到下一次指针事件派发，
+    // 故用小步进累计拖拽量，避免单次大步长的不确定性。
+    final gesture = await tester.startGesture(
+      tester.getCenter(find.byType(GlassNavBar)),
+    );
+    for (var i = 0; i < 8; i++) {
+      await gesture.moveBy(const Offset(20, 0));
+    }
+    await tester.pump();
+    final playlistLeft = tester.getRect(find.byType(PlaylistPage)).left;
+    // 滑块约在 0.5~0.8 页之间：播放列表页被拖出屏幕左侧一部分。
+    expect(playlistLeft, lessThan(-200));
+    expect(playlistLeft, greaterThan(-600));
+
+    // 拖到第 2 项区间后松手（推进时钟消除残余速度 → 吸附最近项）。
+    await gesture.moveBy(const Offset(60, 0));
+    await tester.pump(const Duration(milliseconds: 120));
+    await gesture.up();
+    await tester.pumpAndSettle();
+
+    // 滑块聚焦到「导入」项，页面切换到导入页。
+    expect(tester.getRect(find.byType(ImportPage)).left, closeTo(0, 1));
+
+    // 向左拖回：滑块聚焦「播放列表」，页面切回。
+    final gesture2 = await tester.startGesture(
+      tester.getCenter(find.byType(GlassNavBar)),
+    );
+    for (var i = 0; i < 8; i++) {
+      await gesture2.moveBy(const Offset(-20, 0));
+    }
+    await gesture2.moveBy(const Offset(-60, 0));
+    await tester.pump(const Duration(milliseconds: 120));
+    await gesture2.up();
+    await tester.pumpAndSettle();
+    expect(tester.getRect(find.byType(PlaylistPage)).left, closeTo(0, 1));
+  });
+
   testWidgets('桌面布局：AppSideBar 横向导航，播放页时迷你条隐藏', (tester) async {
     tester.view.physicalSize = const Size(1400, 900);
     tester.view.devicePixelRatio = 1.0;

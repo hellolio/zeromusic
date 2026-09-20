@@ -1356,44 +1356,47 @@ class _VolumePopover extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final volume = ref.watch(preferencesProvider).value?.defaultVolume ?? 1.0;
     final theme = Theme.of(context);
-    return GlassOverlay(
-      key: const ValueKey('player-volume-popover'),
-      radius: AppTokens.radiusM,
-      tint: theme.brightness == Brightness.dark
-          ? Colors.black.withValues(alpha: 0.4)
-          : Colors.white.withValues(alpha: 0.8),
-      padding: EdgeInsets.zero,
-      child: Column(
-        children: [
-          const SizedBox(height: AppTokens.spaceXs),
-          Text(
-            '${(volume * 100).round()}%',
-            style: theme.textTheme.labelSmall?.copyWith(
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 2),
-          Expanded(
-            child: RotatedBox(
-              quarterTurns: 3,
-              child: Slider(
-                key: const ValueKey('player-volume-slider'),
-                value: volume.clamp(0.0, 1.0),
-                onChanged: (v) =>
-                    ref.read(preferencesProvider.notifier).setDefaultVolume(v),
+    // 与其他弹窗一致套用白色文字主题：浅色模式下玻璃窗偏暗，默认黑字不清。
+    return GlassPopupTextTheme(
+      child: GlassOverlay(
+        key: const ValueKey('player-volume-popover'),
+        radius: AppTokens.radiusM,
+        tint: theme.brightness == Brightness.dark
+            ? Colors.black.withValues(alpha: 0.4)
+            : Colors.white.withValues(alpha: 0.8),
+        padding: EdgeInsets.zero,
+        child: Column(
+          children: [
+            const SizedBox(height: AppTokens.spaceXs),
+            Text(
+              '${(volume * 100).round()}%',
+              style: theme.textTheme.labelSmall?.copyWith(
+                fontWeight: FontWeight.w600,
               ),
             ),
-          ),
-          const SizedBox(height: 2),
-          Icon(
-            volume <= 0
-                ? CupertinoIcons.volume_mute
-                : CupertinoIcons.speaker_2_fill,
-            size: 16,
-            color: theme.colorScheme.onSecondary,
-          ),
-          const SizedBox(height: AppTokens.spaceXs),
-        ],
+            const SizedBox(height: 2),
+            Expanded(
+              child: RotatedBox(
+                quarterTurns: 3,
+                child: Slider(
+                  key: const ValueKey('player-volume-slider'),
+                  value: volume.clamp(0.0, 1.0),
+                  onChanged: (v) =>
+                      ref.read(preferencesProvider.notifier).setDefaultVolume(v),
+                ),
+              ),
+            ),
+            const SizedBox(height: 2),
+            Icon(
+              volume <= 0
+                  ? CupertinoIcons.volume_mute
+                  : CupertinoIcons.speaker_2_fill,
+              size: 16,
+              color: theme.colorScheme.onSecondary,
+            ),
+            const SizedBox(height: AppTokens.spaceXs),
+          ],
+        ),
       ),
     );
   }

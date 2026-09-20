@@ -26,6 +26,9 @@
 	<string>$(PRODUCT_COPYRIGHT)</string>
 	<key>NSMainNibFile</key>
 	<string>MainMenu</string>
+	<!-- 禁用 App Nap：避免锁屏/息屏后应用被挂起导致音乐播放暂停。 -->
+	<key>NSAppSleepDisabled</key>
+	<true/>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
 </dict>
