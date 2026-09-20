@@ -113,12 +113,23 @@ Future<T?> showCenterPopup<T>(
         child: Transform.translate(
           offset: Offset(sideInset / 2, 0),
           child: GlassPopupTextTheme(
-            child: ConstrainedBox(
-              constraints: BoxConstraints(
-                maxWidth: math.min(maxWidth, size.width * 0.8),
-                maxHeight: maxHeight ?? size.height * (isMobile ? 0.5 : 0.8),
+            // 弹窗是居中浮层，与屏幕安全区无关：移除安全区 padding。
+            // 否则弹窗内的 ListView 在 padding 为 null 时会自动吸收
+            // MediaQuery.padding（手机上 = 状态栏/底部横条高度），
+            // 造成标题与内容间大片空白。
+            child: MediaQuery.removePadding(
+              context: dialogCtx,
+              removeTop: true,
+              removeBottom: true,
+              removeLeft: true,
+              removeRight: true,
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: math.min(maxWidth, size.width * 0.8),
+                  maxHeight: maxHeight ?? size.height * (isMobile ? 0.5 : 0.8),
+                ),
+                child: child,
               ),
-              child: child,
             ),
           ),
         ),

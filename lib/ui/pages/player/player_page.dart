@@ -1220,37 +1220,40 @@ Future<void> _showSleepTimerSheet(BuildContext context, WidgetRef ref) async {
     context,
     child: GlassOverlay(
       radius: AppTokens.radiusL,
-      child: SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(AppTokens.spaceM),
-              child: Text(
-                strings.playerSleepTimer,
-                style: Theme.of(context).textTheme.titleMedium
-                    ?.copyWith(fontWeight: FontWeight.w700),
-              ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppTokens.spaceM,
+              AppTokens.spaceM,
+              AppTokens.spaceM,
+              AppTokens.spaceS,
             ),
+            child: Text(
+              strings.playerSleepTimer,
+              style: Theme.of(context).textTheme.titleMedium
+                  ?.copyWith(fontWeight: FontWeight.w700),
+            ),
+          ),
+          _sleepTile(
+            context,
+            strings,
+            strings.playerSleepOff,
+            Duration.zero,
+            current,
+          ),
+          for (final m in presets)
             _sleepTile(
               context,
               strings,
-              strings.playerSleepOff,
-              Duration.zero,
+              strings.sleepTimerMinutes(m),
+              Duration(minutes: m),
               current,
             ),
-            for (final m in presets)
-              _sleepTile(
-                context,
-                strings,
-                strings.sleepTimerMinutes(m),
-                Duration(minutes: m),
-                current,
-              ),
-            const SizedBox(height: AppTokens.spaceS),
-          ],
-        ),
+          const SizedBox(height: AppTokens.spaceS),
+        ],
       ),
     ),
   );
@@ -1275,6 +1278,7 @@ Widget _sleepTile(
   final checked = value == Duration.zero ? current == null : current == value;
   return ListTile(
     dense: true,
+    visualDensity: VisualDensity.compact,
     leading: Icon(
       checked ? CupertinoIcons.checkmark_circle_fill : CupertinoIcons.circle,
       color: checked
@@ -1419,7 +1423,12 @@ Future<void> _showQueueSheet(BuildContext context, WidgetRef ref) async {
         mainAxisSize: MainAxisSize.min,
         children: [
           Padding(
-            padding: const EdgeInsets.all(AppTokens.spaceM),
+            padding: const EdgeInsets.fromLTRB(
+              AppTokens.spaceM,
+              AppTokens.spaceM,
+              AppTokens.spaceM,
+              AppTokens.spaceS,
+            ),
             child: Text(
               strings.playerUpNext,
               style: Theme.of(context).textTheme.titleLarge
@@ -1428,6 +1437,9 @@ Future<void> _showQueueSheet(BuildContext context, WidgetRef ref) async {
           ),
           Flexible(
             child: ListView.separated(
+              // 显式 zero padding：null 会让 ListView 吸收 MediaQuery
+              // 的安全区高度（居中弹窗内无此概念）。
+              padding: EdgeInsets.zero,
               shrinkWrap: true,
               itemCount: queue.length,
               separatorBuilder: (_, _) => const SizedBox(height: 2),
@@ -1468,6 +1480,8 @@ class _QueueRow extends StatelessWidget {
     final color = current ? scheme.primary : Colors.white;
     final subtitle = track.artist;
     return ListTile(
+      dense: true,
+      visualDensity: VisualDensity.compact,
       leading: Icon(CupertinoIcons.music_note, color: color),
       title: Text(
         track.title,

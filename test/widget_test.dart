@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:riverpod/misc.dart' show Override;
 
+import 'package:zeromusic/core/theme/app_tokens.dart';
 import 'package:zeromusic/services/audio/audio_controller.dart';
 import 'package:zeromusic/services/audio/track.dart';
 import 'package:zeromusic/ui/mini_player/mini_player.dart';
@@ -112,10 +113,16 @@ void main() {
     final navRect = tester.getRect(find.byType(GlassNavBar));
     final miniRect = tester.getRect(find.byType(MiniPlayer));
 
-    // 底栏略高于迷你条，形成层级区分。
+    // 底栏略高于迷你条，形成层级区分（高度差由令牌决定）。
     expect(navRect.height, closeTo(GlassNavBar.height, 1));
     expect(navRect.height, greaterThan(miniRect.height));
-    expect(navRect.height - miniRect.height, closeTo(8, 1));
+    expect(
+      navRect.height - miniRect.height,
+      closeTo(
+        AppTokens.mobileBottomControlHeight - AppTokens.mobileMiniPlayerHeight,
+        1,
+      ),
+    );
 
     // 左右不贴屏幕边缘。
     final screenW = tester.view.physicalSize.width;
@@ -241,6 +248,32 @@ void main() {
     await gesture2.up();
     await tester.pumpAndSettle();
     expect(tester.getRect(find.byType(PlaylistPage)).left, closeTo(0, 1));
+  });
+
+  testWidgets('底栏：按住任意位置滑块放大成水滴，松手回弹', (tester) async {
+    await pumpApp(tester);
+
+    double pillScaleX() => tester
+        .widget<Transform>(
+          find.byKey(const ValueKey('nav-bar-pill-transform')),
+        )
+        .transform
+        .storage[0];
+
+    // 静止：无放大。
+    expect(pillScaleX(), closeTo(1.0, 0.01));
+
+    // 按住底栏任意位置：滑块 spring 放大到 1.12。
+    final gesture = await tester.startGesture(
+      tester.getCenter(find.byType(GlassNavBar)),
+    );
+    await tester.pumpAndSettle();
+    expect(pillScaleX(), closeTo(1.12, 0.01));
+
+    // 松手：回弹到 1.0。
+    await gesture.up();
+    await tester.pumpAndSettle();
+    expect(pillScaleX(), closeTo(1.0, 0.01));
   });
 
   testWidgets('桌面布局：AppSideBar 横向导航，播放页时迷你条隐藏', (tester) async {

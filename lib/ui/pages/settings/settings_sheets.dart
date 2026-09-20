@@ -154,43 +154,47 @@ class _ChoiceSheet extends StatelessWidget {
     final theme = Theme.of(context);
     return GlassOverlay(
       radius: AppTokens.radiusL,
-      child: SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(AppTokens.spaceM),
-              child: Text(title,
-                  style: theme.textTheme.titleMedium
-                      ?.copyWith(fontWeight: FontWeight.w700)),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppTokens.spaceM,
+              AppTokens.spaceM,
+              AppTokens.spaceM,
+              AppTokens.spaceS,
             ),
-            for (final option in options)
-              ListTile(
-                dense: true,
-                leading: Icon(
-                  option.checked
-                      ? CupertinoIcons.checkmark_circle_fill
-                      : CupertinoIcons.circle,
+            child: Text(title,
+                style: theme.textTheme.titleMedium
+                    ?.copyWith(fontWeight: FontWeight.w700)),
+          ),
+          for (final option in options)
+            ListTile(
+              dense: true,
+              visualDensity: VisualDensity.compact,
+              leading: Icon(
+                option.checked
+                    ? CupertinoIcons.checkmark_circle_fill
+                    : CupertinoIcons.circle,
+                color: option.checked
+                    ? theme.colorScheme.primary
+                    : theme.colorScheme.onSecondary,
+              ),
+              title: Text(
+                option.label,
+                style: theme.textTheme.bodyLarge?.copyWith(
                   color: option.checked
                       ? theme.colorScheme.primary
-                      : theme.colorScheme.onSecondary,
+                      : theme.colorScheme.onSurface,
+                  fontWeight:
+                      option.checked ? FontWeight.w600 : FontWeight.w400,
                 ),
-                title: Text(
-                  option.label,
-                  style: theme.textTheme.bodyLarge?.copyWith(
-                    color: option.checked
-                        ? theme.colorScheme.primary
-                        : theme.colorScheme.onSurface,
-                    fontWeight:
-                        option.checked ? FontWeight.w600 : FontWeight.w400,
-                  ),
-                ),
-                onTap: option.onTap,
               ),
-            const SizedBox(height: AppTokens.spaceS),
-          ],
-        ),
+              onTap: option.onTap,
+            ),
+          const SizedBox(height: AppTokens.spaceS),
+        ],
       ),
     );
   }

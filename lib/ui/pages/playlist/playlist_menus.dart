@@ -30,22 +30,20 @@ Future<void> showSongMenu(
     context,
     child: GlassOverlay(
       radius: AppTokens.radiusL,
-      child: SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _sheetTile(context, song.isFavorite ? CupertinoIcons.heart_fill : CupertinoIcons.heart,
-                song.isFavorite ? strings.unfavorite : strings.favorite,
-                favorite,
-                color: song.isFavorite ? AppTokens.favorite : null),
-            _sheetTile(context, CupertinoIcons.tag, strings.tagSong, tagSong),
-            _sheetTile(context, CupertinoIcons.add, strings.addToQueue, enqueue),
-            _sheetTile(context, CupertinoIcons.pencil, strings.edit, edit),
-            _sheetTile(context, CupertinoIcons.trash, strings.delete, remove,
-                color: AppTokens.favorite),
-            const SizedBox(height: AppTokens.spaceS),
-          ],
-        ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _sheetTile(context, song.isFavorite ? CupertinoIcons.heart_fill : CupertinoIcons.heart,
+              song.isFavorite ? strings.unfavorite : strings.favorite,
+              favorite,
+              color: song.isFavorite ? AppTokens.favorite : null),
+          _sheetTile(context, CupertinoIcons.tag, strings.tagSong, tagSong),
+          _sheetTile(context, CupertinoIcons.add, strings.addToQueue, enqueue),
+          _sheetTile(context, CupertinoIcons.pencil, strings.edit, edit),
+          _sheetTile(context, CupertinoIcons.trash, strings.delete, remove,
+              color: AppTokens.favorite),
+          const SizedBox(height: AppTokens.spaceS),
+        ],
       ),
     ),
   );
@@ -59,6 +57,8 @@ Widget _sheetTile(
   Color? color,
 }) {
   return ListTile(
+    dense: true,
+    visualDensity: VisualDensity.compact,
     leading: Icon(icon, color: color),
     title: Text(label),
     onTap: () {
@@ -98,22 +98,20 @@ Future<void> showBatchSongMenu(
     context,
     child: GlassOverlay(
       radius: AppTokens.radiusL,
-      child: SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _sheetTile(context, allFavorite ? CupertinoIcons.heart_fill : CupertinoIcons.heart,
-                allFavorite ? strings.unfavorite : strings.favorite,
-                favorite,
-                color: allFavorite ? AppTokens.favorite : null),
-            _sheetTile(context, CupertinoIcons.tag, strings.tagSong, tagSongs),
-            _sheetTile(context, CupertinoIcons.pencil, strings.edit, edit),
-            _sheetTile(context, CupertinoIcons.add, strings.addToQueue, enqueue),
-            _sheetTile(context, CupertinoIcons.trash, strings.delete, remove,
-                color: AppTokens.favorite),
-            const SizedBox(height: AppTokens.spaceS),
-          ],
-        ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _sheetTile(context, allFavorite ? CupertinoIcons.heart_fill : CupertinoIcons.heart,
+              allFavorite ? strings.unfavorite : strings.favorite,
+              favorite,
+              color: allFavorite ? AppTokens.favorite : null),
+          _sheetTile(context, CupertinoIcons.tag, strings.tagSong, tagSongs),
+          _sheetTile(context, CupertinoIcons.pencil, strings.edit, edit),
+          _sheetTile(context, CupertinoIcons.add, strings.addToQueue, enqueue),
+          _sheetTile(context, CupertinoIcons.trash, strings.delete, remove,
+              color: AppTokens.favorite),
+          const SizedBox(height: AppTokens.spaceS),
+        ],
       ),
     ),
   );
@@ -404,69 +402,76 @@ class _TagPickerSheet extends ConsumerWidget {
 
     return GlassOverlay(
       radius: AppTokens.radiusL,
-      child: SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppTokens.spaceM,
+              AppTokens.spaceM,
+              AppTokens.spaceM,
+              AppTokens.spaceS,
+            ),
+            child: Row(
+              children: [
+                Text(strings.tagSong,
+                    style: Theme.of(context).textTheme.titleMedium),
+                const Spacer(),
+                _tagActionButton(
+                  icon: CupertinoIcons.add,
+                  label: strings.newTag,
+                  onPressed: () async {
+                    await showCreateTagDialog(context, ref);
+                  },
+                ),
+              ],
+            ),
+          ),
+          if (tags.isEmpty)
             Padding(
               padding: const EdgeInsets.all(AppTokens.spaceM),
-              child: Row(
+              child: Text(strings.empty,
+                  style: TextStyle(color: Theme.of(context).colorScheme.onSecondary)),
+            )
+          else
+            Flexible(
+              child: ListView(
+                // 显式 zero padding：null 会让 ListView 吸收 MediaQuery
+                // 的安全区高度（居中弹窗内无此概念）。
+                padding: EdgeInsets.zero,
+                shrinkWrap: true,
                 children: [
-                  Text(strings.tagSong,
-                      style: Theme.of(context).textTheme.titleMedium),
-                  const Spacer(),
-                  _tagActionButton(
-                    icon: CupertinoIcons.add,
-                    label: strings.newTag,
-                    onPressed: () async {
-                      await showCreateTagDialog(context, ref);
-                    },
-                  ),
+                  for (final tag in tags)
+                    CheckboxListTile(
+                      value: current.contains(tag.id),
+                      dense: true,
+                      visualDensity: VisualDensity.compact,
+                      controlAffinity: ListTileControlAffinity.leading,
+                      title: Row(
+                        children: [
+                          Container(
+                            width: 12,
+                            height: 12,
+                            decoration: BoxDecoration(
+                              color: Color(tag.color).withValues(alpha: 0.9),
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          const SizedBox(width: AppTokens.spaceS),
+                          Text(tag.name),
+                        ],
+                      ),
+                      onChanged: (checked) async {
+                        await tagRepo.setTagOnSongs(songIds, tag.id,
+                            assign: checked ?? false);
+                      },
+                    ),
                 ],
               ),
             ),
-            if (tags.isEmpty)
-              Padding(
-                padding: const EdgeInsets.all(AppTokens.spaceM),
-                child: Text(strings.empty,
-                    style: TextStyle(color: Theme.of(context).colorScheme.onSecondary)),
-              )
-            else
-              Flexible(
-                child: ListView(
-                  shrinkWrap: true,
-                  children: [
-                    for (final tag in tags)
-                      CheckboxListTile(
-                        value: current.contains(tag.id),
-                        dense: true,
-                        controlAffinity: ListTileControlAffinity.leading,
-                        title: Row(
-                          children: [
-                            Container(
-                              width: 12,
-                              height: 12,
-                              decoration: BoxDecoration(
-                                color: Color(tag.color).withValues(alpha: 0.9),
-                                shape: BoxShape.circle,
-                              ),
-                            ),
-                            const SizedBox(width: AppTokens.spaceS),
-                            Text(tag.name),
-                          ],
-                        ),
-                        onChanged: (checked) async {
-                          await tagRepo.setTagOnSongs(songIds, tag.id,
-                              assign: checked ?? false);
-                        },
-                      ),
-                  ],
-                ),
-              ),
-            const SizedBox(height: AppTokens.spaceS),
-          ],
-        ),
+          const SizedBox(height: AppTokens.spaceS),
+        ],
       ),
     );
   }
@@ -496,93 +501,101 @@ class _TagFilterSheet extends ConsumerWidget {
 
     return GlassOverlay(
       radius: AppTokens.radiusL,
-      child: SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppTokens.spaceM,
+              AppTokens.spaceM,
+              AppTokens.spaceM,
+              AppTokens.spaceS,
+            ),
+            child: Row(
+              children: [
+                Text(strings.tabTags,
+                    style: Theme.of(context).textTheme.titleMedium),
+                const Spacer(),
+                _tagActionButton(
+                  icon: CupertinoIcons.gear_alt,
+                  label: strings.manageTags,
+                  onPressed: () async {
+                    await showManageTagsDialog(context, ref);
+                  },
+                ),
+                const SizedBox(width: AppTokens.spaceXs),
+                _tagActionButton(
+                  icon: CupertinoIcons.add,
+                  label: strings.newTag,
+                  onPressed: () async {
+                    await showCreateTagDialog(context, ref);
+                  },
+                ),
+              ],
+            ),
+          ),
+          if (tags.isEmpty)
             Padding(
               padding: const EdgeInsets.all(AppTokens.spaceM),
-              child: Row(
+              child: Text(strings.empty,
+                  style: TextStyle(color: Theme.of(context).colorScheme.onSecondary)),
+            )
+          else
+            Flexible(
+              child: ListView(
+                // 显式 zero padding：null 会让 ListView 吸收 MediaQuery
+                // 的安全区高度（居中弹窗内无此概念）。
+                padding: EdgeInsets.zero,
+                shrinkWrap: true,
                 children: [
-                  Text(strings.tabTags,
-                      style: Theme.of(context).textTheme.titleMedium),
-                  const Spacer(),
-                  _tagActionButton(
-                    icon: CupertinoIcons.gear_alt,
-                    label: strings.manageTags,
-                    onPressed: () async {
-                      await showManageTagsDialog(context, ref);
-                    },
+                  ListTile(
+                    dense: true,
+                    visualDensity: VisualDensity.compact,
+                    leading: Icon(
+                      selectedTagId == null
+                          ? CupertinoIcons.checkmark_circle_fill
+                          : CupertinoIcons.circle,
+                      color: selectedTagId == null
+                          ? Theme.of(context).colorScheme.primary
+                          : Theme.of(context).colorScheme.onSecondary,
+                    ),
+                    title: Text(strings.tabAll),
+                    onTap: () => Navigator.of(context).pop(-1),
                   ),
-                  const SizedBox(width: AppTokens.spaceXs),
-                  _tagActionButton(
-                    icon: CupertinoIcons.add,
-                    label: strings.newTag,
-                    onPressed: () async {
-                      await showCreateTagDialog(context, ref);
-                    },
-                  ),
-                ],
-              ),
-            ),
-            if (tags.isEmpty)
-              Padding(
-                padding: const EdgeInsets.all(AppTokens.spaceM),
-                child: Text(strings.empty,
-                    style: TextStyle(color: Theme.of(context).colorScheme.onSecondary)),
-              )
-            else
-              Flexible(
-                child: ListView(
-                  shrinkWrap: true,
-                  children: [
+                  for (final tag in tags)
                     ListTile(
                       dense: true,
+                      visualDensity: VisualDensity.compact,
                       leading: Icon(
-                        selectedTagId == null
+                        selectedTagId == tag.id
                             ? CupertinoIcons.checkmark_circle_fill
                             : CupertinoIcons.circle,
-                        color: selectedTagId == null
+                        color: selectedTagId == tag.id
                             ? Theme.of(context).colorScheme.primary
                             : Theme.of(context).colorScheme.onSecondary,
                       ),
-                      title: Text(strings.tabAll),
-                      onTap: () => Navigator.of(context).pop(-1),
-                    ),
-                    for (final tag in tags)
-                      ListTile(
-                        dense: true,
-                        leading: Icon(
-                          selectedTagId == tag.id
-                              ? CupertinoIcons.checkmark_circle_fill
-                              : CupertinoIcons.circle,
-                          color: selectedTagId == tag.id
-                              ? Theme.of(context).colorScheme.primary
-                              : Theme.of(context).colorScheme.onSecondary,
-                        ),
-                        title: Row(
-                          children: [
-                            Container(
-                              width: 12,
-                              height: 12,
-                              decoration: BoxDecoration(
-                                color: Color(tag.color).withValues(alpha: 0.9),
-                                shape: BoxShape.circle,
-                              ),
+                      title: Row(
+                        children: [
+                          Container(
+                            width: 12,
+                            height: 12,
+                            decoration: BoxDecoration(
+                              color: Color(tag.color).withValues(alpha: 0.9),
+                              shape: BoxShape.circle,
                             ),
-                            const SizedBox(width: AppTokens.spaceS),
-                            Text(tag.name),
-                          ],
-                        ),
-                        onTap: () => Navigator.of(context).pop(tag.id),
+                          ),
+                          const SizedBox(width: AppTokens.spaceS),
+                          Text(tag.name),
+                        ],
                       ),
-                  ],
-                ),
+                      onTap: () => Navigator.of(context).pop(tag.id),
+                    ),
+                ],
               ),
-            const SizedBox(height: AppTokens.spaceS),
-          ],
-        ),
+            ),
+          const SizedBox(height: AppTokens.spaceS),
+        ],
       ),
     );
   }
@@ -705,66 +718,73 @@ class _ManageTagsSheet extends ConsumerWidget {
 
     return GlassOverlay(
       radius: AppTokens.radiusL,
-      child: SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppTokens.spaceM,
+              AppTokens.spaceM,
+              AppTokens.spaceM,
+              AppTokens.spaceS,
+            ),
+            child: Text(strings.manageTags,
+                style: Theme.of(context).textTheme.titleMedium),
+          ),
+          if (tags.isEmpty)
             Padding(
               padding: const EdgeInsets.all(AppTokens.spaceM),
-              child: Text(strings.manageTags,
-                  style: Theme.of(context).textTheme.titleMedium),
-            ),
-            if (tags.isEmpty)
-              Padding(
-                padding: const EdgeInsets.all(AppTokens.spaceM),
-                child: Text(strings.empty,
-                    style: TextStyle(color: Theme.of(context).colorScheme.onSecondary)),
-              )
-            else
-              Flexible(
-                child: ListView(
-                  shrinkWrap: true,
-                  children: [
-                    for (final tag in tags)
-                      ListTile(
-                        dense: true,
-                        leading: Container(
-                          width: 12,
-                          height: 12,
-                          decoration: BoxDecoration(
-                            color: Color(tag.color).withValues(alpha: 0.9),
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                        title: Text(tag.name),
-                        trailing: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            IconButton(
-                              icon: const Icon(CupertinoIcons.pencil, size: 18),
-                              onPressed: () async {
-                                final newName =
-                                    await _promptRename(context, tag.name, strings);
-                                if (newName != null && newName.trim().isNotEmpty) {
-                                  await tagRepo.renameTag(tag.id, newName.trim());
-                                }
-                              },
-                            ),
-                            IconButton(
-                              icon: const Icon(CupertinoIcons.trash, size: 18,
-                                  color: AppTokens.favorite),
-                              onPressed: () => tagRepo.deleteTag(tag.id),
-                            ),
-                          ],
+              child: Text(strings.empty,
+                  style: TextStyle(color: Theme.of(context).colorScheme.onSecondary)),
+            )
+          else
+            Flexible(
+              child: ListView(
+                // 显式 zero padding：null 会让 ListView 吸收 MediaQuery
+                // 的安全区高度（居中弹窗内无此概念）。
+                padding: EdgeInsets.zero,
+                shrinkWrap: true,
+                children: [
+                  for (final tag in tags)
+                    ListTile(
+                      dense: true,
+                      visualDensity: VisualDensity.compact,
+                      leading: Container(
+                        width: 12,
+                        height: 12,
+                        decoration: BoxDecoration(
+                          color: Color(tag.color).withValues(alpha: 0.9),
+                          shape: BoxShape.circle,
                         ),
                       ),
-                  ],
-                ),
+                      title: Text(tag.name),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            icon: const Icon(CupertinoIcons.pencil, size: 18),
+                            onPressed: () async {
+                              final newName =
+                                  await _promptRename(context, tag.name, strings);
+                              if (newName != null && newName.trim().isNotEmpty) {
+                                await tagRepo.renameTag(tag.id, newName.trim());
+                              }
+                            },
+                          ),
+                          IconButton(
+                            icon: const Icon(CupertinoIcons.trash, size: 18,
+                                color: AppTokens.favorite),
+                            onPressed: () => tagRepo.deleteTag(tag.id),
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
               ),
-            const SizedBox(height: AppTokens.spaceS),
-          ],
-        ),
+            ),
+          const SizedBox(height: AppTokens.spaceS),
+        ],
       ),
     );
   }

@@ -545,7 +545,9 @@ class _SwipeableCapsuleState extends State<_SwipeableCapsule>
   /// 拖动/换歌时从后方露出邻曲文本 peek。
   Widget _miniContent(_CapsuleData data) {
     return Padding(
-      padding: EdgeInsets.symmetric(horizontal: _pickRadius, vertical: 3),
+      // 高度收紧后内容自然高（两行文本 48）已贴近条高，纵向不再额外留白；
+      // 内容靠 Column 的垂直居中摆放。
+      padding: EdgeInsets.symmetric(horizontal: _pickRadius),
       child: Column(
         mainAxisSize: MainAxisSize.max,
         mainAxisAlignment: MainAxisAlignment.center,
@@ -752,7 +754,7 @@ class _DesktopMiniPlayer extends StatelessWidget {
               radius: AppTokens.radiusPill,
               padding: const EdgeInsets.symmetric(
                 horizontal: AppTokens.spaceM,
-                vertical: AppTokens.spaceS,
+                vertical: AppTokens.spaceXxs,
               ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,

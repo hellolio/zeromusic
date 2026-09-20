@@ -4,6 +4,9 @@ import 'package:flutter/material.dart';
 abstract final class AppTokens {
   // ---- 间距 ----
   static const double spaceXs = 4;
+
+  /// 微间距：介于 xs 与 s 之间，用于迷你条等紧凑容器的纵向内边距。
+  static const double spaceXxs = 6;
   static const double spaceS = 8;
   static const double spaceM = 16;
   static const double spaceL = 24;
@@ -14,7 +17,7 @@ abstract final class AppTokens {
   static const double mobileBottomControlHeight = 62;
 
   /// 迷你播放条略小于底栏，作为轻量的播放状态入口。
-  static const double mobileMiniPlayerHeight = 54;
+  static const double mobileMiniPlayerHeight = 50;
 
   // ---- 圆角 ----
   static const double radiusS = 8;

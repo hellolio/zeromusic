@@ -62,70 +62,68 @@ class _LyricsEditorBodyState extends State<_LyricsEditorBody> {
     final isEdit = (widget.initial ?? '').isNotEmpty;
     return GlassOverlay(
       radius: AppTokens.radiusL,
-      child: SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
-                AppTokens.spaceL,
-                AppTokens.spaceM,
-                AppTokens.spaceL,
-                AppTokens.spaceS,
-              ),
-              child: Text(
-                isEdit ? strings.lyricsEdit : strings.lyricsAdd,
-                style: Theme.of(context)
-                    .textTheme
-                    .titleMedium
-                    ?.copyWith(fontWeight: FontWeight.w700),
-              ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppTokens.spaceL,
+              AppTokens.spaceM,
+              AppTokens.spaceL,
+              AppTokens.spaceS,
             ),
-            Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppTokens.spaceL,
-              ),
-              child: TextField(
-                controller: _controller,
-                autofocus: true,
-                maxLines: 8,
-                minLines: 4,
-                decoration: InputDecoration(
-                  hintText: strings.lyricsHint,
-                  errorText: _error,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(AppTokens.radiusM),
-                  ),
-                  isDense: true,
+            child: Text(
+              isEdit ? strings.lyricsEdit : strings.lyricsAdd,
+              style: Theme.of(context)
+                  .textTheme
+                  .titleMedium
+                  ?.copyWith(fontWeight: FontWeight.w700),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppTokens.spaceL,
+            ),
+            child: TextField(
+              controller: _controller,
+              autofocus: true,
+              maxLines: 8,
+              minLines: 4,
+              decoration: InputDecoration(
+                hintText: strings.lyricsHint,
+                errorText: _error,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(AppTokens.radiusM),
                 ),
+                isDense: true,
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
-                AppTokens.spaceL,
-                AppTokens.spaceM,
-                AppTokens.spaceL,
-                AppTokens.spaceM,
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  TextButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    child: Text(strings.cancel),
-                  ),
-                  const SizedBox(width: AppTokens.spaceS),
-                  FilledButton(
-                    key: const ValueKey('lyrics-editor-save'),
-                    onPressed: _save,
-                    child: Text(strings.save),
-                  ),
-                ],
-              ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppTokens.spaceL,
+              AppTokens.spaceM,
+              AppTokens.spaceL,
+              AppTokens.spaceM,
             ),
-          ],
-        ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: Text(strings.cancel),
+                ),
+                const SizedBox(width: AppTokens.spaceS),
+                FilledButton(
+                  key: const ValueKey('lyrics-editor-save'),
+                  onPressed: _save,
+                  child: Text(strings.save),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

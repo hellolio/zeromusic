@@ -335,6 +335,46 @@ void main() {
     expect(rect.width, lessThanOrEqualTo(390 * 0.8 + 0.5));
   });
 
+  testWidgets('移动端：队列弹窗内 ListView 不吸收安全区高度（回归）', (tester) async {
+    // 模拟移动端安全区（状态栏 59 / 底部横条 34）：ListView 的 padding
+    // 若为 null，Flutter 会自动把它当作列表顶部 padding，标题与列表间
+    // 出现 ~59px 空白（弹窗是居中浮层，不应存在安全区概念）。
+    tester.view.padding = const FakeViewPadding(top: 59, bottom: 34);
+    final engine = FakeAudioEngine();
+    await pumpApp(
+      tester,
+      engine: engine,
+      viewport: const Size(390, 844),
+      overrides: fakeDataLayerOverrides(FakeDataLayer(seed: const [])),
+    );
+    final queue = List.generate(5, (i) => Track(id: 'q$i', title: '曲$i'));
+    ProviderScope.containerOf(
+      tester.element(find.byType(AdaptiveScaffold)),
+    ).read(audioControllerProvider.notifier).playQueue(queue);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byType(MiniPlayer));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('player-queue-button')));
+    await tester.pumpAndSettle();
+
+    // 结构断言：弹窗内 ListView 必须显式 zero padding（锁死触发条件）。
+    final listViews = tester.widgetList<ListView>(
+      find.descendant(
+        of: find.byType(GlassOverlay),
+        matching: find.byType(ListView),
+      ),
+    );
+    expect(listViews, isNotEmpty);
+    for (final lv in listViews) {
+      expect(lv.padding, EdgeInsets.zero);
+    }
+
+    // 行为断言：标题文本与首行歌名的间距 ≤ 24px（修复前 ~59px+）。
+    final titleRect = tester.getRect(find.text('Up Next').last);
+    final row0Rect = tester.getRect(find.widgetWithText(ListTile, '曲0').last);
+    expect(row0Rect.top - titleRect.bottom, lessThanOrEqualTo(24));
+  });
+
   testWidgets('TC-11 歌词面板占位', (tester) async {
     await pumpPlayer(tester);
 

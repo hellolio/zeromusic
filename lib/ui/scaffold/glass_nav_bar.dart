@@ -61,6 +61,12 @@ class _GlassNavBarState extends State<GlassNavBar> {
   /// 液体形变最大水平拉伸量（垂直按比例压扁）。
   static const double _maxStretch = 0.22;
 
+  /// 按住放大倍率：任意按下时滑块放大成「水滴」，松手 spring 回弹。
+  static const double _pressScale = 1.12;
+
+  /// 是否按住（按下底栏任意位置即为 true）。
+  bool _pressed = false;
+
   /// 拖动中的分数下标（越界部分已做橡皮筋阻尼）；null = 未拖动。
   double? _scrub;
 
@@ -79,6 +85,11 @@ class _GlassNavBarState extends State<GlassNavBar> {
     if (value < 0) return value * 0.18;
     if (value > max) return max + (value - max) * 0.18;
     return value;
+  }
+
+  void _setPressed(bool pressed) {
+    if (_pressed == pressed) return;
+    setState(() => _pressed = pressed);
   }
 
   void _onDragStart(DragStartDetails details) {
@@ -147,68 +158,93 @@ class _GlassNavBarState extends State<GlassNavBar> {
             final count = widget.destinations.length;
             final itemWidth = constraints.maxWidth / count;
             final scrub = _scrub;
+            final reduceMotion = MediaQuery.disableAnimationsOf(context);
+            // 按住放大目标：减弱动效时跳过动画、瞬时到达目标（静态状态
+            // 变化不算动效，保留按压反馈）。
+            final pressTarget = _pressed ? _pressScale : 1.0;
             // 指示胶囊位置：拖动时跟手（分数下标），静止时吸附选中项。
             final pillLeft =
                 (scrub ?? widget.selectedIndex) * itemWidth +
                     (itemWidth - GlassNavBar._pillWidth) / 2;
-            return GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onHorizontalDragStart: _onDragStart,
-              onHorizontalDragUpdate: (d) => _onDragUpdate(d, itemWidth),
-              onHorizontalDragEnd: _onDragEnd,
-              onHorizontalDragCancel: _onDragCancel,
-              child: Stack(
-                children: [
-                  // 滑动玻璃指示胶囊：拖动中零时长直跟手，松手 spring 吸附。
-                  AnimatedPositioned(
-                    duration: scrub != null ? Duration.zero : AppCurves.standardMotion,
-                    curve: AppCurves.spring,
-                    left: pillLeft,
-                    top: (GlassNavBar.height - GlassNavBar._pillHeight) / 2,
-                    width: GlassNavBar._pillWidth,
-                    height: GlassNavBar._pillHeight,
-                    child: TweenAnimationBuilder<double>(
-                      tween: Tween(end: _stretchTarget),
-                      duration: AppCurves.quickMotion,
-                      curve: AppCurves.quick,
-                      builder: (context, stretch, child) => Transform(
-                        alignment: Alignment.center,
-                        transform: Matrix4.identity()
-                          ..scaleByDouble(1.0 + stretch, 1.0 - stretch * 0.35, 1, 1),
-                        child: child,
-                      ),
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          // 中性白底胶囊：与玻璃背景同色系，不带蓝色色相；
-                          // 选中强调色仅由下方图标/文字（accent）承担。
-                          color: Colors.white.withValues(
-                            alpha: isDark ? 0.12 : 0.45,
-                          ),
-                          borderRadius: BorderRadius.circular(
-                            GlassNavBar._pillHeight / 2,
-                          ),
-                          border: Border.all(
+            return Listener(
+              // 任意按下：滑块 spring 放大成「水滴」，抬起/取消回弹。
+              onPointerDown: (_) => _setPressed(true),
+              onPointerUp: (_) => _setPressed(false),
+              onPointerCancel: (_) => _setPressed(false),
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onHorizontalDragStart: _onDragStart,
+                onHorizontalDragUpdate: (d) => _onDragUpdate(d, itemWidth),
+                onHorizontalDragEnd: _onDragEnd,
+                onHorizontalDragCancel: _onDragCancel,
+                child: Stack(
+                  children: [
+                    // 滑动玻璃指示胶囊：拖动中零时长直跟手，松手 spring 吸附。
+                    AnimatedPositioned(
+                      duration: scrub != null ? Duration.zero : AppCurves.standardMotion,
+                      curve: AppCurves.spring,
+                      left: pillLeft,
+                      top: (GlassNavBar.height - GlassNavBar._pillHeight) / 2,
+                      width: GlassNavBar._pillWidth,
+                      height: GlassNavBar._pillHeight,
+                      child: TweenAnimationBuilder<double>(
+                        // 按住放大：与拖拽液态拉伸叠加。
+                        tween: Tween(end: pressTarget),
+                        duration:
+                            reduceMotion ? Duration.zero : AppCurves.quickMotion,
+                        curve: AppCurves.spring,
+                        builder: (context, pressScale, pill) =>
+                            TweenAnimationBuilder<double>(
+                              tween: Tween(end: _stretchTarget),
+                              duration: AppCurves.quickMotion,
+                              curve: AppCurves.quick,
+                              builder: (context, stretch, child) => Transform(
+                                key: const ValueKey('nav-bar-pill-transform'),
+                                alignment: Alignment.center,
+                                transform: Matrix4.identity()
+                                  ..scaleByDouble(
+                                    (1.0 + stretch) * pressScale,
+                                    (1.0 - stretch * 0.35) * pressScale,
+                                    1,
+                                    1,
+                                  ),
+                                child: child,
+                              ),
+                              child: pill,
+                            ),
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            // 中性白底胶囊：与玻璃背景同色系，不带蓝色色相；
+                            // 选中强调色仅由下方图标/文字（accent）承担。
                             color: Colors.white.withValues(
-                              alpha: isDark ? 0.10 : 0.45,
+                              alpha: isDark ? 0.12 : 0.45,
+                            ),
+                            borderRadius: BorderRadius.circular(
+                              GlassNavBar._pillHeight / 2,
+                            ),
+                            border: Border.all(
+                              color: Colors.white.withValues(
+                                alpha: isDark ? 0.10 : 0.45,
+                              ),
                             ),
                           ),
                         ),
                       ),
                     ),
-                  ),
-                  Row(
-                    children: [
-                      for (var i = 0; i < count; i++)
-                        Expanded(
-                          child: _NavItem(
-                            destination: widget.destinations[i],
-                            selected: i == _highlightIndex,
-                            onTap: () => widget.onSelected(i),
+                    Row(
+                      children: [
+                        for (var i = 0; i < count; i++)
+                          Expanded(
+                            child: _NavItem(
+                              destination: widget.destinations[i],
+                              selected: i == _highlightIndex,
+                              onTap: () => widget.onSelected(i),
+                            ),
                           ),
-                        ),
-                    ],
-                  ),
-                ],
+                      ],
+                    ),
+                  ],
+                ),
               ),
             );
           },

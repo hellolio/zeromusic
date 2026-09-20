@@ -16,7 +16,7 @@ Future<void> showImportComingSoonSheet(
     context,
     child: GlassOverlay(
       radius: 24,
-      padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
+      padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
