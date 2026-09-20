@@ -36,11 +36,15 @@ import 'pull_to_dismiss.dart';
 /// - 桌面端：播放页内左侧控制元素 + 右侧歌词分栏（顶部 × 关闭，动画滑入/滑出）；
 /// - 移动端：📄 切换为全屏歌词视图，切换按钮与播放页底行「歌词」槽位对齐。
 class PlayerPage extends ConsumerStatefulWidget {
-  const PlayerPage({super.key, this.anchor});
+  const PlayerPage({super.key, this.anchor, this.miniPlayerSize});
 
   /// 迷你条中心的屏幕坐标：收起动画（[PullToDismiss]）围绕该点缩放进迷你条。
   /// 为 null（如直接 push）时回退底部中央。
   final Offset? anchor;
+
+  /// 迷你条尺寸：收起时页面非等比缩放逼近迷你条胶囊形状（宽扁）。
+  /// 为 null 时按等比缩放兜底。
+  final Size? miniPlayerSize;
 
   @override
   ConsumerState<PlayerPage> createState() => _PlayerPageState();
@@ -75,13 +79,14 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
         enabled: true,
         // 仅屏幕上方 60%（进度条上方一定距离）下拉才退出，避免与进度条拖动冲突。
         startAreaFraction: 0.6,
-        // 收起完成（pop）时迷你条回弹：页面收进迷你条后，迷你条弹一下。
-        onDismiss: () {
-          ref.read(miniPlayerBounceProvider.notifier).bump();
-          Navigator.of(context).maybePop();
-        },
+        // 页面下滑到达迷你条时 → 迷你条开始回弹（与收进过程同步，收完正好结束）。
+        onDismissStart: () =>
+            ref.read(miniPlayerBounceProvider.notifier).bump(),
+        onDismiss: () => Navigator.of(context).maybePop(),
         // 围绕迷你条中心收进迷你条；拿不到锚点时回退右下/底部中央。
         collapseAnchor: widget.anchor,
+        // 收起时非等比缩放逼近迷你条胶囊形状（宽扁）。
+        collapseTargetSize: widget.miniPlayerSize,
         collapseAlignment: isDesktop
             ? Alignment.bottomRight
             : Alignment.bottomCenter,

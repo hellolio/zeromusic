@@ -89,20 +89,23 @@ class _AdaptiveScaffoldState extends ConsumerState<AdaptiveScaffold> {
   /// 推入全屏播放页。移动端与桌面端共用：覆盖整窗（含侧栏）。
   ///
   /// - 点按迷你条：迷你条做一次轻微按压反馈；
-  /// - 进场：从迷你条真实中心**展开**（矩阵缩放锚点对准迷你条中心，scale 0.25→1，
-  ///   `easeOutBack` spring 微过冲，**无淡入淡出**）；
+  /// - 进场：从迷你条真实矩形**展开**——**非等比缩放**从迷你条胶囊形状
+  ///   （宽扁）长满全屏（`easeOutBack` spring 微过冲，无淡入淡出）；
   /// - `opaque: false`：收起/展开时下层页面（含迷你条）随播放页缩小/长大
   ///   逐步露出/盖住，形成「收进迷你条」与「从迷你条展开」的观感；
   /// - 反向转场时长为 0：收起动画由 [PullToDismiss] 完成，pop 不再叠加过渡。
   void _pushPlayer() {
     // 点按反馈：迷你条「动一下」（轻微按压）。
     ref.read(miniPlayerPressProvider.notifier).press();
-    // 迷你条真实矩形中心 → 展开/收起的缩放锚点（拿不到则回退底部中央）。
-    final anchor = _miniPlayerCenter();
+    // 迷你条真实矩形 → 展开/收起的缩放锚点（中心）与目标尺寸（形状）。
+    final rect = _miniPlayerRect();
+    final anchor = rect?.center;
+    final miniSize = rect?.size;
     Navigator.of(context).push(
       PageRouteBuilder(
         opaque: false,
-        pageBuilder: (_, _, _) => PlayerPage(anchor: anchor),
+        pageBuilder: (_, _, _) =>
+            PlayerPage(anchor: anchor, miniPlayerSize: miniSize),
         transitionsBuilder: (_, animation, _, child) {
           final curved = CurvedAnimation(
             parent: animation,
@@ -110,6 +113,7 @@ class _AdaptiveScaffoldState extends ConsumerState<AdaptiveScaffold> {
           );
           return _ScaleFromPoint(
             anchor: anchor,
+            beginSize: miniSize,
             animation: curved,
             child: child,
           );
@@ -120,11 +124,11 @@ class _AdaptiveScaffoldState extends ConsumerState<AdaptiveScaffold> {
     );
   }
 
-  /// 迷你条中心的屏幕坐标（供播放页展开/收起锚定）。
-  Offset? _miniPlayerCenter() {
+  /// 迷你条真实矩形（屏幕坐标，供播放页展开/收起锚定）。
+  Rect? _miniPlayerRect() {
     final box = _miniPlayerKey.currentContext?.findRenderObject() as RenderBox?;
     if (box == null || !box.attached || !box.hasSize) return null;
-    return box.localToGlobal(Offset.zero) + box.size.center(Offset.zero);
+    return box.localToGlobal(Offset.zero) & box.size;
   }
 
   @override
@@ -278,37 +282,52 @@ class _AdaptiveScaffoldState extends ConsumerState<AdaptiveScaffold> {
   }
 }
 
-/// 播放页进场转场：围绕迷你条中心（[anchor]）做缩放展开（scale 0.25→1.0）。
+/// 播放页进场转场：围绕迷你条矩形展开——**非等比缩放**从迷你条胶囊形状
+/// （宽扁，sx=迷你条宽/屏宽、sy=迷你条高/屏高）长满全屏。
 ///
-/// 用 `Matrix4` 的 scale-around-point（`T(锚点)·S(s)·T(-锚点)`）把缩放中心钉在
-/// 迷你条上，页面从迷你条「生长」出来；拿不到锚点时回退屏幕底部中央。
+/// 用 `Matrix4` 的 scale-around-point（`T(锚点)·S(sx,sy)·T(-锚点)`）把缩放中心钉在
+/// 迷你条上，页面从迷你条「生长」出来；拿不到尺寸时回退等比 0.25、锚点回退底部中央。
 /// 配合 [Curves.easeOutBack]（非线性的 spring 手感）且无淡入淡出。
 class _ScaleFromPoint extends StatelessWidget {
   const _ScaleFromPoint({
     required this.anchor,
     required this.animation,
     required this.child,
+    this.beginSize,
   });
 
   final Offset? anchor;
+
+  /// 迷你条尺寸：起点形状（宽扁胶囊）。为 null 时按 [_fallbackScale] 等比。
+  final Size? beginSize;
+
   final Animation<double> animation;
   final Widget child;
 
-  static const double _beginScale = 0.25;
+  static const double _fallbackScale = 0.25;
 
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.sizeOf(context);
     final fallback = Offset(size.width / 2, size.height * 0.85);
     final center = anchor ?? fallback;
+    final begin = beginSize;
+    final sxBegin = begin == null
+        ? _fallbackScale
+        : (begin.width / size.width).clamp(0.01, 1.0);
+    final syBegin = begin == null
+        ? _fallbackScale
+        : (begin.height / size.height).clamp(0.01, 1.0);
     return AnimatedBuilder(
       animation: animation,
       builder: (context, child) {
-        final s = _beginScale + (1.0 - _beginScale) * animation.value;
+        final t = animation.value;
+        final sx = sxBegin + (1.0 - sxBegin) * t;
+        final sy = syBegin + (1.0 - syBegin) * t;
         return Transform(
           transform: Matrix4.identity()
             ..translateByDouble(center.dx, center.dy, 0, 1)
-            ..scaleByDouble(s, s, 1, 1)
+            ..scaleByDouble(sx, sy, 1, 1)
             ..translateByDouble(-center.dx, -center.dy, 0, 1),
           child: child,
         );

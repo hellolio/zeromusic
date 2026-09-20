@@ -100,7 +100,7 @@ void main() {
     expect(dismissed, isTrue);
   });
 
-  testWidgets('收起动画开始时触发 onDismissStart，完成后才触发 onDismiss', (tester) async {
+  testWidgets('页面到达迷你条时触发 onDismissStart，完成后才触发 onDismiss', (tester) async {
     var dismissed = false;
     var startCount = 0;
     await pumpPtd(
@@ -114,9 +114,12 @@ void main() {
     await g.moveBy(const Offset(0, 160));
     await tester.pump();
     await g.up();
-    await tester.pump(const Duration(milliseconds: 60));
+    await tester.pump(); // 启动收起动画（ticker 从下一帧开始计时）
+    for (var i = 0; i < 4; i++) {
+      await tester.pump(const Duration(milliseconds: 50));
+    }
 
-    // 收起动画进行中：已触发 start，尚未 dismiss。
+    // 已越过「页面顶部到达迷你条」触发点（收起 300ms×(1/3)=100ms）：回弹已触发，尚未 dismiss。
     expect(startCount, 1);
     expect(dismissed, isFalse);
 
@@ -168,7 +171,10 @@ void main() {
     );
 
     key.currentState?.collapse();
-    await tester.pump(const Duration(milliseconds: 60));
+    await tester.pump(); // 启动收起动画
+    for (var i = 0; i < 4; i++) {
+      await tester.pump(const Duration(milliseconds: 50));
+    }
     expect(startCount, 1);
     expect(dismissed, isFalse);
 

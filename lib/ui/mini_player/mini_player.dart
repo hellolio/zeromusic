@@ -646,14 +646,23 @@ class _Rebound extends StatefulWidget {
 class _ReboundState extends State<_Rebound> with TickerProviderStateMixin {
   late final AnimationController _bounce = AnimationController(
     vsync: this,
-    // 与收起动画（450ms）的露出阶段对齐，让回弹在迷你条可见期间完整播放。
-    duration: const Duration(milliseconds: 300),
+    // 与收起动画（300ms，下滑 1/3 后回弹 200ms）的露出阶段对齐，让回弹在
+    // 迷你条可见期间完整播放，收完时正好结束。
+    duration: const Duration(milliseconds: 200),
   );
 
   late final AnimationController _press = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 160),
   );
+
+  @override
+  void initState() {
+    super.initState();
+    // 静止态 = 完整大小（1.0）。回弹播放时 forward(from: 0) 从 0.7 长回 1.0，
+    // 否则迷你条在首次回弹前会一直以 0.7 倍渲染（看起来偏小）。
+    _bounce.value = 1.0;
+  }
 
   @override
   void didUpdateWidget(_Rebound oldWidget) {
