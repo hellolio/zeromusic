@@ -86,7 +86,12 @@ class LyricWindowDesktop implements LyricWindowApi {
 
   @override
   Future<void> configure(LyricWindowConfig config) async {
-    if (!_open || config == _lastConfig) return;
+    // 幂等口径忽略 initialState：播放态/音量随状态推送下发，只有窗口
+    // 形态（主题/语言/字号/位置）变化才值得整轮 reconfigure（含 resize）。
+    if (!_open ||
+        (_lastConfig != null && config.sameDisplayIgnoringState(_lastConfig!))) {
+      return;
+    }
     _lastConfig = config;
     await _safe(
       () => _controller?.invokeMethod(

@@ -68,6 +68,19 @@ class FakeLyricWindowApi implements LyricWindowApi {
   void emitPosition(Offset position) =>
       _events.add(LyricBarPositionSavedEvent(position));
 
+  /// 模拟歌词条内播放/暂停按钮被点击。
+  void emitTogglePlay() => _events.add(const LyricBarTogglePlayEvent());
+
+  /// 模拟歌词条内下一曲按钮被点击。
+  void emitNext() => _events.add(const LyricBarNextEvent());
+
+  /// 模拟歌词条内上一曲按钮被点击。
+  void emitPrevious() => _events.add(const LyricBarPreviousEvent());
+
+  /// 模拟歌词条音量滑杆提交。
+  void emitVolume(double volume) =>
+      _events.add(LyricBarVolumeChangedEvent(volume));
+
   @override
   void dispose() => unawaited(_events.close());
 }

@@ -24,6 +24,7 @@ const String kMultiWindowEntryArg = 'multi_window';
 /// - [currentText] 为 null：无歌词 / 尚未到第一行 → 显示「歌名 · 歌手」占位。
 /// - [currentText] 为空字符串：纯音乐间奏 → 显示「♪ 间奏 ♪」占位。
 /// - [nextText] 为 null：无下一句（最后一句 / 无歌词）→ 第二行不渲染。
+/// - [isPlaying]/[volume]：悬停控制条（⏯/音量）所需播放态；缺省兼容旧消息。
 @immutable
 class LyricBarStateMessage {
   const LyricBarStateMessage({
@@ -32,6 +33,8 @@ class LyricBarStateMessage {
     this.artist = '',
     this.currentText,
     this.nextText,
+    this.isPlaying = false,
+    this.volume = 1.0,
   });
 
   /// 当前是否有曲目；false → 显示「未在播放」占位。
@@ -40,6 +43,12 @@ class LyricBarStateMessage {
   final String artist;
   final String? currentText;
   final String? nextText;
+
+  /// 是否正在播放（歌词条 ⏯ 图标形态）。
+  final bool isPlaying;
+
+  /// 当前音量 0.0–1.0（歌词条音量滑杆初值；主窗口偏好同源）。
+  final double volume;
 
   /// 无歌词 / 未到首行时由歌词条渲染的占位正文。
   String get placeholderText => '$title · $artist';
@@ -50,6 +59,8 @@ class LyricBarStateMessage {
     'artist': artist,
     'current': currentText,
     'next': nextText,
+    'isPlaying': isPlaying,
+    'volume': volume,
   };
 
   factory LyricBarStateMessage.fromJson(Map<Object?, Object?> json) {
@@ -59,6 +70,10 @@ class LyricBarStateMessage {
       artist: json['artist'] is String ? json['artist'] as String : '',
       currentText: json['current'] is String ? json['current'] as String : null,
       nextText: json['next'] is String ? json['next'] as String : null,
+      isPlaying: json['isPlaying'] == true,
+      volume: json['volume'] is num
+          ? (json['volume'] as num).toDouble().clamp(0.0, 1.0)
+          : 1.0,
     );
   }
 
@@ -69,16 +84,19 @@ class LyricBarStateMessage {
       other.title == title &&
       other.artist == artist &&
       other.currentText == currentText &&
-      other.nextText == nextText;
+      other.nextText == nextText &&
+      other.isPlaying == isPlaying &&
+      other.volume == volume;
 
   @override
   int get hashCode =>
-      Object.hash(hasTrack, title, artist, currentText, nextText);
+      Object.hash(hasTrack, title, artist, currentText, nextText, isPlaying, volume);
 
   @override
   String toString() =>
       'LyricBarStateMessage(hasTrack: $hasTrack, title: $title, '
-      'artist: $artist, current: $currentText, next: $nextText)';
+      'artist: $artist, current: $currentText, next: $nextText, '
+      'isPlaying: $isPlaying, volume: $volume)';
 }
 
 /// 歌词条 → 主窗口的回传事件。
@@ -104,6 +122,29 @@ class LyricBarPositionSavedEvent extends LyricBarHostEvent {
   const LyricBarPositionSavedEvent(this.position);
 
   final Offset position;
+}
+
+/// 歌词条 ⏯ 被点击：主窗口切换播放/暂停。
+class LyricBarTogglePlayEvent extends LyricBarHostEvent {
+  const LyricBarTogglePlayEvent();
+}
+
+/// 歌词条 ⏭ 被点击：主窗口切下一曲。
+class LyricBarNextEvent extends LyricBarHostEvent {
+  const LyricBarNextEvent();
+}
+
+/// 歌词条 ⏮ 被点击：主窗口切上一曲。
+class LyricBarPreviousEvent extends LyricBarHostEvent {
+  const LyricBarPreviousEvent();
+}
+
+/// 歌词条音量滑杆提交（onChangeEnd 才发，拖动中不刷屏）：
+/// 主窗口写回默认音量偏好（与播放页音量同源）。
+class LyricBarVolumeChangedEvent extends LyricBarHostEvent {
+  const LyricBarVolumeChangedEvent(this.volume);
+
+  final double volume;
 }
 
 /// 编解码：通道上的 method/arguments ↔ 强类型消息。
@@ -132,6 +173,11 @@ abstract final class LyricBarMessenger {
     'y': position.dy,
   };
 
+  /// 音量提交（volume 事件）：与 decodeHostEvent 的 `v` 键对应。
+  static Map<String, Object?> encodeVolume(double volume) => {
+    'v': volume,
+  };
+
   /// 解码 back 通道调用；无法识别返回 null。
   static LyricBarHostEvent? decodeHostEvent(String method, Object? arguments) {
     switch (method) {
@@ -151,12 +197,31 @@ abstract final class LyricBarMessenger {
           );
         }
         return null;
+      case togglePlayMethod:
+        return const LyricBarTogglePlayEvent();
+      case nextMethod:
+        return const LyricBarNextEvent();
+      case previousMethod:
+        return const LyricBarPreviousEvent();
+      case volumeMethod:
+        if (arguments is Map<Object?, Object?> && arguments['v'] is num) {
+          return LyricBarVolumeChangedEvent(
+            (arguments['v'] as num).toDouble().clamp(0.0, 1.0),
+          );
+        }
+        return null;
       default:
         return null;
     }
   }
 
   static const String positionMethod = 'position';
+
+  /// 播放控制回传方法名。
+  static const String togglePlayMethod = 'togglePlay';
+  static const String nextMethod = 'next';
+  static const String previousMethod = 'previous';
+  static const String volumeMethod = 'volume';
 
   /// 编码窗口配置（创建窗口时随参数携带，含初始状态，避免首帧占位闪变）。
   static String encodeConfig(LyricWindowConfig config) =>
@@ -250,4 +315,19 @@ class LyricWindowConfig {
 
   @override
   String toString() => 'LyricWindowConfig(${toJson()})';
+}
+
+extension LyricWindowConfigDisplay on LyricWindowConfig {
+  /// 窗口形态（主题/语言/字号/位置）是否与 [other] 一致，忽略随推送实时
+  /// 变化的 [LyricWindowConfig.initialState]。
+  ///
+  /// reconfigure 幂等判定用它而非 ==：音量/播放态变化会随状态推送下发，
+  /// 若计入相等性会为纯状态变化触发整轮 configure（重置窗口尺寸 + 重放
+  /// 高度），白白多两次窗口 resize。
+  bool sameDisplayIgnoringState(LyricWindowConfig other) {
+    return other.localeCode == localeCode &&
+        other.dark == dark &&
+        other.fontTier == fontTier &&
+        other.offset == offset;
+  }
 }

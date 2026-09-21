@@ -136,6 +136,11 @@ abstract class AppStrings {
   String get desktopLyricsNotPlaying;
   String get desktopLyricsInterlude;
   String get desktopLyricsFocusHint;
+  String get desktopLyricsPlay;
+  String get desktopLyricsPause;
+  String get desktopLyricsPrevious;
+  String get desktopLyricsNext;
+  String get desktopLyricsVolume;
 }
 
 /// 通过 BuildContext 访问当前语言字符串。

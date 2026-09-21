@@ -13,6 +13,7 @@ import '../../core/localization/localizations_delegate.dart';
 import '../../core/theme/app_theme.dart';
 import '../../services/desktop_lyrics/lyric_bar_messenger.dart';
 import '../../services/desktop_lyrics/lyric_window_desktop.dart';
+import '../../services/desktop_lyrics/lyric_window_resize_gate.dart';
 import 'desktop_lyrics_bar.dart';
 
 /// 主窗口 → 歌词条子窗口的指令（经 WindowController 通道转发）。
@@ -192,9 +193,12 @@ class _LyricBarWindowPageState extends State<_LyricBarWindowPage> {
   /// 最近一次实测的内容高度（由 [_ContentHeightReporter] 上报）。
   double? _lastContentHeight;
 
-  /// 最近一次应用到窗口的尺寸（避免重复平台调用）。
-  double _lastAppliedHeight = -1;
-  double _lastAppliedWidth = -1;
+  /// setSize 闸门（坑 12）：高度应用去抖合并 + 单飞串行 + 定时器轮次
+  /// 应用，杜绝「帧回调内同步 setSize」触发 ResizeSynchronizer 重入与
+  /// raster 线程竞态（Impeller SetupRenderPass 空指针崩溃）。
+  late final LyricWindowResizeGate _resizeGate = LyricWindowResizeGate(
+    apply: (size) => windowManager.setSize(size),
+  );
 
   /// 单向通道：主窗口 → 歌词条 的状态推送。
   static const _pushChannel = WindowMethodChannel(
@@ -217,15 +221,12 @@ class _LyricBarWindowPageState extends State<_LyricBarWindowPage> {
         _state != widget.config.initialState) {
       _state = widget.config.initialState;
     }
-    // 复用路径的 reconfigure 会把窗口重置回默认档位尺寸：本帧渲染后
-    // 重新应用内容高度，消除多余留白（含字号档位变化的宽度跟随）。
+    // 复用路径的 reconfigure 会把窗口重置回默认档位尺寸：闸门重置记忆
+    // 后重放内容高度，消除多余留白（含字号档位变化的宽度跟随；若字号
+    // 变了，量测层会再报新高度，闸门只落最新值）。
     if (widget.config != oldWidget.config && _lastContentHeight != null) {
-      _lastAppliedHeight = -1;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
-          unawaited(_applyWindowHeight());
-        }
-      });
+      _resizeGate.reset();
+      _scheduleWindowHeight();
     }
   }
 
@@ -264,6 +265,7 @@ class _LyricBarWindowPageState extends State<_LyricBarWindowPage> {
 
   @override
   void dispose() {
+    _resizeGate.dispose();
     unawaited(_pushChannel.setMethodCallHandler(null));
     super.dispose();
   }
@@ -296,34 +298,62 @@ class _LyricBarWindowPageState extends State<_LyricBarWindowPage> {
     }
   }
 
+  /// ⏯ → 主窗口切换播放/暂停。
+  Future<void> _onTogglePlay() => _sendHostEvent(
+    LyricBarMessenger.togglePlayMethod,
+  );
+
+  /// ⏮ → 主窗口上一曲。
+  Future<void> _onPrevious() => _sendHostEvent(
+    LyricBarMessenger.previousMethod,
+  );
+
+  /// ⏭ → 主窗口下一曲。
+  Future<void> _onNext() => _sendHostEvent(
+    LyricBarMessenger.nextMethod,
+  );
+
+  /// 音量提交（onChangeEnd）→ 主窗口写回默认音量偏好。
+  Future<void> _onVolumeChanged(double volume) => _sendHostEvent(
+    LyricBarMessenger.volumeMethod,
+    LyricBarMessenger.encodeVolume(volume),
+  );
+
+  /// 歌词条 → 主窗口事件发送（通道不可达时静默降级，不致崩）。
+  Future<void> _sendHostEvent(
+    String method, [
+    Object? arguments,
+  ]) async {
+    try {
+      await _backChannel
+          .invokeMethod(method, arguments)
+          .timeout(const Duration(seconds: 2));
+    } on Exception catch (_) {
+      // 主窗口通道不可达（主窗口已退出 / 正在关闭）——忽略。
+    }
+  }
+
   /// 内容高度实测回调：把窗口高度自适应到正好包住内容。
   ///
   /// window_manager 的 setSize 语义是「顶边固定」（见原生 setBounds：
   /// origin.y += 旧高 - 新高），行数 2↔1 切换时当前行位置不跳动；
   /// 首帧收缩发生在 show 之前，肉眼无感。
+  ///
+  /// 崩溃关键（坑 12）：绝不在帧回调栈内直接 setSize——这里只记录高度
+  /// 并交给 [_resizeGate] 去抖，实际平台调用发生在独立的定时器轮次。
   void _onContentHeightChanged(double height) {
     _lastContentHeight = height;
-    unawaited(_applyWindowHeight());
+    _scheduleWindowHeight();
   }
 
-  Future<void> _applyWindowHeight() async {
+  /// 把「字号档位宽 × 实测内容高（向上取整）」交给闸门去抖应用。
+  void _scheduleWindowHeight() {
     final contentHeight = _lastContentHeight;
     if (contentHeight == null || !mounted) {
       return;
     }
     final width = lyricBarWindowSize(widget.config.fontTier).width;
-    final target = contentHeight.ceilToDouble();
-    if ((target - _lastAppliedHeight).abs() < 0.5 &&
-        width == _lastAppliedWidth) {
-      return;
-    }
-    _lastAppliedHeight = target;
-    _lastAppliedWidth = width;
-    try {
-      await windowManager.setSize(Size(width, target));
-    } on Exception catch (_) {
-      // 平台通道不可用（如测试环境）不影响渲染。
-    }
+    _resizeGate.schedule(Size(width, contentHeight.ceilToDouble()));
   }
 
   @override
@@ -337,6 +367,10 @@ class _LyricBarWindowPageState extends State<_LyricBarWindowPage> {
           fontTier: widget.config.fontTier,
           onClose: _onClose,
           onDragStart: _onDragStart,
+          onTogglePlay: _onTogglePlay,
+          onPrevious: _onPrevious,
+          onNext: _onNext,
+          onVolumeChanged: _onVolumeChanged,
         ),
       ),
     );

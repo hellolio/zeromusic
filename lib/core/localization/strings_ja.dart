@@ -348,4 +348,19 @@ class AppStringsJa extends AppStrings {
 
   @override
   String get desktopLyricsFocusHint => 'このプラットフォームでは歌詞バーをクリックするとアプリが前面に出ます';
+
+  @override
+  String get desktopLyricsPlay => '再生';
+
+  @override
+  String get desktopLyricsPause => '一時停止';
+
+  @override
+  String get desktopLyricsPrevious => '前の曲';
+
+  @override
+  String get desktopLyricsNext => '次の曲';
+
+  @override
+  String get desktopLyricsVolume => '音量';
 }

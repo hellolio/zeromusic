@@ -26,6 +26,8 @@ void main() {
         artist: 'A',
         currentText: '行',
         nextText: 'next',
+        isPlaying: true,
+        volume: 0.4,
       );
       final decoded = LyricBarMessenger.decodeState(
         LyricBarMessenger.encodeState(msg),
@@ -38,6 +40,9 @@ void main() {
       expect(decoded.hasTrack, isTrue);
       expect(decoded.title, '');
       expect(decoded.currentText, isNull);
+      // 播放态 / 音量缺字段回默认（旧版消息兼容）。
+      expect(decoded.isPlaying, isFalse);
+      expect(decoded.volume, 1.0);
       // 非法参数整体回退「未在播放」。
       expect(
         LyricBarMessenger.decodeState('bad'),
@@ -60,11 +65,27 @@ void main() {
         'y': 2.0,
       });
       expect((pos as LyricBarPositionSavedEvent).position, const Offset(1, 2));
+      // 播放控制回传事件。
+      expect(
+        LyricBarMessenger.decodeHostEvent('togglePlay', null),
+        isA<LyricBarTogglePlayEvent>(),
+      );
+      expect(
+        LyricBarMessenger.decodeHostEvent('next', null),
+        isA<LyricBarNextEvent>(),
+      );
+      expect(
+        LyricBarMessenger.decodeHostEvent('previous', null),
+        isA<LyricBarPreviousEvent>(),
+      );
+      final vol = LyricBarMessenger.decodeHostEvent('volume', {'v': 0.25});
+      expect((vol as LyricBarVolumeChangedEvent).volume, 0.25);
       // 非法 / 未知消息返回 null。
       expect(
         LyricBarMessenger.decodeHostEvent('position', {'x': 'bad'}),
         isNull,
       );
+      expect(LyricBarMessenger.decodeHostEvent('volume', {'v': 'bad'}), isNull);
       expect(LyricBarMessenger.decodeHostEvent('other', null), isNull);
     });
 
@@ -403,6 +424,101 @@ void main() {
       expect(last.title, 'No Lyrics Song');
       expect(last.artist, 'Artist X');
       expect(last.currentText, isNull);
+    });
+
+    test('TC-37 状态推送携带 isPlaying 与 volume', () async {
+      final api = FakeLyricWindowApi();
+      final engine = FakeAudioEngine();
+      final store = InMemoryPreferencesStore(
+        const AppPreferences(
+          desktopLyricsEnabled: true,
+          defaultVolume: 0.4,
+        ),
+      );
+      final container = makeContainer(engine: engine, store: store, api: api);
+      addTearDown(container.dispose);
+
+      container.read(desktopLyricsControllerProvider);
+      await settle(container);
+
+      // 音量来自偏好（与播放页同源）。
+      expect(api.pushedStates.last.volume, 0.4);
+
+      container.read(audioControllerProvider.notifier).play(track('1'));
+      await settle(container);
+
+      // 播放态随切歌推送（驱动歌词条 ⏯ 图标）。
+      expect(api.pushedStates.last.hasTrack, isTrue);
+      expect(api.pushedStates.last.isPlaying, isTrue);
+    });
+
+    test('TC-38 播放控制回传：togglePlay → 引擎暂停/恢复', () async {
+      final api = FakeLyricWindowApi();
+      final engine = FakeAudioEngine();
+      final store = InMemoryPreferencesStore(
+        const AppPreferences(desktopLyricsEnabled: true),
+      );
+      final container = makeContainer(engine: engine, store: store, api: api);
+      addTearDown(container.dispose);
+
+      container.read(desktopLyricsControllerProvider);
+      await settle(container);
+      container.read(audioControllerProvider.notifier).play(track('1'));
+      await settle(container);
+      expect(container.read(audioControllerProvider).isPlaying, isTrue);
+
+      api.emitTogglePlay();
+      await settle(container);
+      expect(engine.pauseCount, 1);
+      expect(container.read(audioControllerProvider).isPlaying, isFalse);
+
+      api.emitTogglePlay();
+      await settle(container);
+      expect(engine.resumeCount, 1);
+      expect(container.read(audioControllerProvider).isPlaying, isTrue);
+    });
+
+    test('TC-38 切歌回传：next / previous 换引擎源', () async {
+      final api = FakeLyricWindowApi();
+      final engine = FakeAudioEngine();
+      final store = InMemoryPreferencesStore(
+        const AppPreferences(desktopLyricsEnabled: true),
+      );
+      final container = makeContainer(engine: engine, store: store, api: api);
+      addTearDown(container.dispose);
+
+      container.read(desktopLyricsControllerProvider);
+      await settle(container);
+      container.read(audioControllerProvider.notifier).play(track('1'));
+      await settle(container);
+      final loadedAfterPlay = engine.playedTracks.length;
+
+      api.emitNext();
+      await settle(container);
+      expect(engine.playedTracks.length, greaterThan(loadedAfterPlay));
+
+      api.emitPrevious();
+      await settle(container);
+      expect(engine.playedTracks.length, greaterThan(loadedAfterPlay + 1));
+    });
+
+    test('TC-38 音量回传 → 偏好落盘并同步引擎', () async {
+      final api = FakeLyricWindowApi();
+      final engine = FakeAudioEngine();
+      final store = InMemoryPreferencesStore(
+        const AppPreferences(desktopLyricsEnabled: true),
+      );
+      final container = makeContainer(engine: engine, store: store, api: api);
+      addTearDown(container.dispose);
+
+      container.read(desktopLyricsControllerProvider);
+      await settle(container);
+
+      api.emitVolume(0.25);
+      await settle(container);
+
+      expect(store.lastSaved.defaultVolume, 0.25);
+      expect(engine.lastVolume, 0.25);
     });
 
     test('TC-17 空文本行 → 间奏占位（current=""）', () async {

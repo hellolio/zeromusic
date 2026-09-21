@@ -23,8 +23,13 @@ final desktopLyricsStateProvider = Provider<LyricBarStateMessage>((ref) {
         hasTrack: s.hasTrack,
         title: s.currentTrack?.title ?? '',
         artist: s.currentTrack?.artist ?? '',
+        isPlaying: s.isPlaying,
       ),
     ),
+  );
+  // 音量与播放页同源：主窗口偏好默认音量（引擎同步由 AudioController 负责）。
+  final volume = ref.watch(
+    preferencesProvider.select((p) => p.value?.defaultVolume ?? 1.0),
   );
   final lines = ref.watch(lyricsLinesProvider).value ?? const <LyricsLine>[];
   final index = ref.watch(activeLyricIndexProvider);
@@ -42,6 +47,8 @@ final desktopLyricsStateProvider = Provider<LyricBarStateMessage>((ref) {
     artist: playback.artist,
     currentText: slot(index),
     nextText: slot(index + 1),
+    isPlaying: playback.isPlaying,
+    volume: volume,
   );
 });
 
@@ -63,8 +70,8 @@ class DesktopLyricsController extends Notifier<bool> {
       }
     });
 
-    // 歌词条回传事件：✕/位置只写偏好，其余交给响应式重建；
-    // ready（引擎就绪）→ 立即补推当前态（冷启动窗口期推送曾被丢弃）。
+    // 歌词条回传事件：✕/位置/播放控制只写偏好或调控制器，其余交给响应式
+    // 重建；ready（引擎就绪）→ 立即补推当前态（冷启动窗口期推送曾被丢弃）。
     final sub = ref.read(lyricWindowApiProvider).events.listen((event) {
       final prefsNotifier = ref.read(preferencesProvider.notifier);
       switch (event) {
@@ -72,6 +79,14 @@ class DesktopLyricsController extends Notifier<bool> {
           unawaited(prefsNotifier.setDesktopLyricsEnabled(false));
         case LyricBarPositionSavedEvent(:final position):
           unawaited(prefsNotifier.setDesktopLyricsOffset(position));
+        case LyricBarTogglePlayEvent():
+          ref.read(audioControllerProvider.notifier).togglePlay();
+        case LyricBarNextEvent():
+          ref.read(audioControllerProvider.notifier).next();
+        case LyricBarPreviousEvent():
+          ref.read(audioControllerProvider.notifier).previous();
+        case LyricBarVolumeChangedEvent(:final volume):
+          unawaited(prefsNotifier.setDefaultVolume(volume));
         case LyricBarReadyEvent():
           if (state) {
             ref
