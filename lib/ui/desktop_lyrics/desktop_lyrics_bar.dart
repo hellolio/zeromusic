@@ -72,16 +72,18 @@ class _DesktopLyricsBarState extends State<DesktopLyricsBar> {
       DesktopLyricsFontSize.large => (24.0, 15.0),
     };
 
+    final duration = motionReduced ? Duration.zero : AppCurves.quickMotion;
+
     return MouseRegion(
       onEnter: (_) => setState(() => _hovering = true),
       onExit: (_) => setState(() => _hovering = false),
       child: AnimatedContainer(
-        duration: motionReduced ? Duration.zero : AppCurves.quickMotion,
+        duration: duration,
         curve: AppCurves.quick,
         decoration: BoxDecoration(
-          // 悬停极淡底色：提示可拖拽，平时完全透明（需求 §3.3）。
+          // 悬停才浮现柔和淡底（可拖拽 + 关闭入口的暗示），平时完全透明。
           color: _hovering
-              ? theme.colorScheme.surface.withValues(alpha: 0.18)
+              ? theme.colorScheme.surface.withValues(alpha: 0.25)
               : Colors.transparent,
           borderRadius: BorderRadius.circular(AppTokens.radiusL),
         ),
@@ -123,10 +125,26 @@ class _DesktopLyricsBarState extends State<DesktopLyricsBar> {
               ),
             ),
             const SizedBox(width: AppTokens.spaceS),
-            _CloseButton(
-              motionReduced: motionReduced,
-              tooltip: strings.desktopLyricsClose,
-              onClose: widget.onClose,
+            // ✕ 仅悬停时出现：透明度 0 + IgnorePointer，不干扰点击/视觉。
+            // 常驻树内（不条件移除），布局尺寸稳定，避免悬停时行内抖动。
+            AnimatedOpacity(
+              key: const ValueKey('desktop_lyrics_close_fade'),
+              duration: duration,
+              curve: AppCurves.quick,
+              opacity: _hovering ? 1.0 : 0.0,
+              child: AnimatedScale(
+                duration: duration,
+                curve: AppCurves.quick,
+                scale: _hovering ? 1.0 : 0.6,
+                child: IgnorePointer(
+                  key: const ValueKey('desktop_lyrics_close_gate'),
+                  ignoring: !_hovering,
+                  child: _CloseButton(
+                    tooltip: strings.desktopLyricsClose,
+                    onClose: widget.onClose,
+                  ),
+                ),
+              ),
             ),
           ],
         ),
@@ -202,56 +220,28 @@ class _LyricSlot extends StatelessWidget {
   }
 }
 
-/// ✕ 关闭按钮：平时低透明度常显，悬停透明度提升 + 轻微放大
-/// （≤200ms，需求 §3.3 / 构架 §5；减弱动效直接替换）。
-class _CloseButton extends StatefulWidget {
-  const _CloseButton({
-    required this.motionReduced,
-    required this.tooltip,
-    this.onClose,
-  });
+/// ✕ 关闭按钮：出现/消失由父层悬停态驱动，自身恒定满透明度
+/// （需求 §3.3：悬停才显示关闭入口；减弱动效由父层归零时长）。
+class _CloseButton extends StatelessWidget {
+  const _CloseButton({required this.tooltip, this.onClose});
 
-  final bool motionReduced;
   final String tooltip;
   final VoidCallback? onClose;
 
   @override
-  State<_CloseButton> createState() => _CloseButtonState();
-}
-
-class _CloseButtonState extends State<_CloseButton> {
-  bool _hovering = false;
-
-  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final duration = widget.motionReduced ? Duration.zero : AppCurves.quickMotion;
     return Tooltip(
-      message: widget.tooltip,
-      child: MouseRegion(
-        onEnter: (_) => setState(() => _hovering = true),
-        onExit: (_) => setState(() => _hovering = false),
-        child: AnimatedScale(
-          duration: duration,
-          curve: AppCurves.quick,
-          scale: _hovering ? 1.15 : 1.0,
-          child: AnimatedOpacity(
-            duration: duration,
-            curve: AppCurves.quick,
-            // 平时低透明度常显（可见性与可测性），悬停变亮。
-            opacity: _hovering ? 1.0 : 0.55,
-            child: CupertinoButton(
-              key: const ValueKey('desktop_lyrics_close'),
-              padding: const EdgeInsets.all(AppTokens.spaceXs),
-              onPressed: widget.onClose,
-              minimumSize: Size(28, 28),
-              child: Icon(
-                CupertinoIcons.xmark,
-                size: 14,
-                color: theme.colorScheme.onSurface,
-              ),
-            ),
-          ),
+      message: tooltip,
+      child: CupertinoButton(
+        key: const ValueKey('desktop_lyrics_close'),
+        padding: const EdgeInsets.all(AppTokens.spaceXs),
+        onPressed: onClose,
+        minimumSize: const Size(28, 28),
+        child: Icon(
+          CupertinoIcons.xmark,
+          size: 14,
+          color: theme.colorScheme.onSurface,
         ),
       ),
     );

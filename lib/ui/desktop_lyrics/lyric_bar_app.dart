@@ -4,6 +4,7 @@ import 'dart:io' show Platform;
 
 import 'package:desktop_multi_window/desktop_multi_window.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show RenderProxyBox;
 import 'package:flutter/services.dart';
 import 'package:screen_retriever/screen_retriever.dart';
 import 'package:window_manager/window_manager.dart';
@@ -188,6 +189,13 @@ class _LyricBarWindowPage extends StatefulWidget {
 class _LyricBarWindowPageState extends State<_LyricBarWindowPage> {
   LyricBarStateMessage _state = const LyricBarStateMessage(hasTrack: false);
 
+  /// 最近一次实测的内容高度（由 [_ContentHeightReporter] 上报）。
+  double? _lastContentHeight;
+
+  /// 最近一次应用到窗口的尺寸（避免重复平台调用）。
+  double _lastAppliedHeight = -1;
+  double _lastAppliedWidth = -1;
+
   /// 单向通道：主窗口 → 歌词条 的状态推送。
   static const _pushChannel = WindowMethodChannel(
     LyricBarChannels.push,
@@ -208,6 +216,16 @@ class _LyricBarWindowPageState extends State<_LyricBarWindowPage> {
     if (widget.config != oldWidget.config &&
         _state != widget.config.initialState) {
       _state = widget.config.initialState;
+    }
+    // 复用路径的 reconfigure 会把窗口重置回默认档位尺寸：本帧渲染后
+    // 重新应用内容高度，消除多余留白（含字号档位变化的宽度跟随）。
+    if (widget.config != oldWidget.config && _lastContentHeight != null) {
+      _lastAppliedHeight = -1;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          unawaited(_applyWindowHeight());
+        }
+      });
     }
   }
 
@@ -278,16 +296,94 @@ class _LyricBarWindowPageState extends State<_LyricBarWindowPage> {
     }
   }
 
+  /// 内容高度实测回调：把窗口高度自适应到正好包住内容。
+  ///
+  /// window_manager 的 setSize 语义是「顶边固定」（见原生 setBounds：
+  /// origin.y += 旧高 - 新高），行数 2↔1 切换时当前行位置不跳动；
+  /// 首帧收缩发生在 show 之前，肉眼无感。
+  void _onContentHeightChanged(double height) {
+    _lastContentHeight = height;
+    unawaited(_applyWindowHeight());
+  }
+
+  Future<void> _applyWindowHeight() async {
+    final contentHeight = _lastContentHeight;
+    if (contentHeight == null || !mounted) {
+      return;
+    }
+    final width = lyricBarWindowSize(widget.config.fontTier).width;
+    final target = contentHeight.ceilToDouble();
+    if ((target - _lastAppliedHeight).abs() < 0.5 &&
+        width == _lastAppliedWidth) {
+      return;
+    }
+    _lastAppliedHeight = target;
+    _lastAppliedWidth = width;
+    try {
+      await windowManager.setSize(Size(width, target));
+    } on Exception catch (_) {
+      // 平台通道不可用（如测试环境）不影响渲染。
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.transparent,
-      body: DesktopLyricsBar(
-        state: _state,
-        fontTier: widget.config.fontTier,
-        onClose: _onClose,
-        onDragStart: _onDragStart,
+      body: _ContentHeightReporter(
+        onHeightChanged: _onContentHeightChanged,
+        child: DesktopLyricsBar(
+          state: _state,
+          fontTier: widget.config.fontTier,
+          onClose: _onClose,
+          onDragStart: _onDragStart,
+        ),
       ),
     );
+  }
+}
+
+/// 实测子内容渲染高度，变化时回调（供窗口高度自适应）。
+class _ContentHeightReporter extends SingleChildRenderObjectWidget {
+  const _ContentHeightReporter({required this.onHeightChanged, super.child});
+
+  final ValueChanged<double> onHeightChanged;
+
+  @override
+  RenderObject createRenderObject(BuildContext context) =>
+      _RenderContentHeightReporter(onHeightChanged);
+
+  @override
+  void updateRenderObject(
+    BuildContext context,
+    covariant _RenderContentHeightReporter renderObject,
+  ) {
+    renderObject.onHeightChanged = onHeightChanged;
+  }
+}
+
+class _RenderContentHeightReporter extends RenderProxyBox {
+  _RenderContentHeightReporter(this.onHeightChanged);
+
+  ValueChanged<double> onHeightChanged;
+
+  double? _lastReported;
+
+  @override
+  void performLayout() {
+    super.performLayout();
+    final child = this.child;
+    if (child == null) {
+      return;
+    }
+    final height = child.size.height;
+    if (_lastReported != null && (height - _lastReported!).abs() <= 0.5) {
+      return;
+    }
+    _lastReported = height;
+    // 布局中不得触发平台调用：推迟到帧末。
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      onHeightChanged(height);
+    });
   }
 }

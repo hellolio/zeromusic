@@ -15,6 +15,9 @@ class MainFlutterWindow: NSWindow {
     // （desktop_multi_window 官方示例模式 + 置顶透明无焦点条定制，
     //  详见《需求文档/08_桌面歌词.md》与开发方案。）
     FlutterMultiWindowPlugin.setOnWindowCreatedCallback { controller in
+      // FlutterView 实例化时自绘黑色背景，只把窗口设 clear 不够——
+      // 必须同时清掉控制器背景，窗口级透明才真正生效（见开发心得坑 10）。
+      controller.backgroundColor = .clear
       RegisterGeneratedPlugins(registry: controller)
       // FlutterViewController 是 NSViewController：窗口须经 view.window 获取
       // （此刻 contentViewController 已挂载，view 必在窗口层级内）。

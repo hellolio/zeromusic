@@ -466,13 +466,30 @@ void main() {
         find.byKey(const ValueKey('settings-desktop-lyrics')),
         findsOneWidget,
       );
+      // 关闭态：字号/恢复位置子项不展示（渐进披露）。
+      expect(
+        find.byKey(const ValueKey('settings-desktop-lyrics-font')),
+        findsNothing,
+      );
+      expect(
+        find.byKey(const ValueKey('settings-desktop-lyrics-reset')),
+        findsNothing,
+      );
 
-      // 开 → 窗口打开 + 持久化 + 抢焦点平台提示出现。
-      await tester.tap(find.byType(Switch));
+      // 开 → 窗口打开 + 持久化 + 子项出现 + 抢焦点平台提示出现。
+      await tester.tap(find.byType(CupertinoSwitch));
       await tester.pumpAndSettle();
       expect(prefsAt(tester).desktopLyricsEnabled, isTrue);
       expect(store.lastSaved.desktopLyricsEnabled, isTrue);
       expect(api.openState, isTrue);
+      expect(
+        find.byKey(const ValueKey('settings-desktop-lyrics-font')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('settings-desktop-lyrics-reset')),
+        findsOneWidget,
+      );
       expect(
         find.text(
           'Clicking the lyrics bar may bring this app to the front '
@@ -481,11 +498,19 @@ void main() {
         findsOneWidget,
       );
 
-      // 关 → 窗口关闭，提示消失。
-      await tester.tap(find.byType(Switch));
+      // 关 → 窗口关闭，提示与子项消失。
+      await tester.tap(find.byType(CupertinoSwitch));
       await tester.pumpAndSettle();
       expect(prefsAt(tester).desktopLyricsEnabled, isFalse);
       expect(api.openState, isFalse);
+      expect(
+        find.byKey(const ValueKey('settings-desktop-lyrics-font')),
+        findsNothing,
+      );
+      expect(
+        find.byKey(const ValueKey('settings-desktop-lyrics-reset')),
+        findsNothing,
+      );
       expect(
         find.text(
           'Clicking the lyrics bar may bring this app to the front '
@@ -496,7 +521,14 @@ void main() {
     });
 
     testWidgets('TC-27 字号档位选择持久化', (tester) async {
-      await pumpSettings(tester, size: const Size(1200, 900));
+      // 字号入口仅在开启后显示：用已开启的初始偏好。
+      await pumpSettings(
+        tester,
+        store: InMemoryPreferencesStore(
+          const AppPreferences(desktopLyricsEnabled: true),
+        ),
+        size: const Size(1200, 900),
+      );
 
       await tester.tap(
         find.byKey(const ValueKey('settings-desktop-lyrics-font')),
@@ -513,7 +545,10 @@ void main() {
 
     testWidgets('TC-28 恢复默认位置清空自定义偏移', (tester) async {
       final store = InMemoryPreferencesStore(
-        const AppPreferences(desktopLyricsOffset: Offset(12, 34)),
+        const AppPreferences(
+          desktopLyricsEnabled: true,
+          desktopLyricsOffset: Offset(12, 34),
+        ),
       );
       await pumpSettings(tester, store: store, size: const Size(1200, 900));
 

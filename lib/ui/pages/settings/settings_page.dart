@@ -85,21 +85,27 @@ class SettingsPage extends ConsumerWidget {
         if (desktop) ...[
           _SectionLabel(strings.settingsDesktop),
           const _DesktopLyricsTile(),
-          _SettingsTile(
-            key: const ValueKey('settings-desktop-lyrics-font'),
-            icon: CupertinoIcons.textformat,
-            label: strings.desktopLyricsFontSize,
-            value: desktopFontSizeLabel(strings, prefs.desktopLyricsFontSize),
-            onTap: () => showDesktopFontSizePicker(context, ref),
-          ),
-          _SettingsTile(
-            key: const ValueKey('settings-desktop-lyrics-reset'),
-            icon: CupertinoIcons.arrow_counterclockwise,
-            label: strings.desktopLyricsResetPosition,
-            onTap: () => ref
-                .read(preferencesProvider.notifier)
-                .clearDesktopLyricsOffset(),
-          ),
+          // 字号 / 恢复位置仅在开启后出现（渐进披露），关闭态只剩一行。
+          if (prefs.desktopLyricsEnabled) ...[
+            _SettingsTile(
+              key: const ValueKey('settings-desktop-lyrics-font'),
+              icon: CupertinoIcons.textformat,
+              label: strings.desktopLyricsFontSize,
+              value: desktopFontSizeLabel(
+                strings,
+                prefs.desktopLyricsFontSize,
+              ),
+              onTap: () => showDesktopFontSizePicker(context, ref),
+            ),
+            _SettingsTile(
+              key: const ValueKey('settings-desktop-lyrics-reset'),
+              icon: CupertinoIcons.arrow_counterclockwise,
+              label: strings.desktopLyricsResetPosition,
+              onTap: () => ref
+                  .read(preferencesProvider.notifier)
+                  .clearDesktopLyricsOffset(),
+            ),
+          ],
         ],
         _SectionLabel(strings.settingsAbout),
         _SettingsTile(
@@ -294,7 +300,8 @@ class _DesktopLyricsTile extends ConsumerWidget {
             color: theme.colorScheme.onSecondary,
           ),
           title: Text(strings.desktopLyrics, style: theme.textTheme.bodyLarge),
-          trailing: Switch(
+          trailing: CupertinoSwitch(
+            // 与均衡器开关同一风格（iOS 原生感），替代 Material Switch。
             value: enabled,
             onChanged: (v) => ref
                 .read(preferencesProvider.notifier)
