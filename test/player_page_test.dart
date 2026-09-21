@@ -302,6 +302,25 @@ void main() {
     expect(find.byType(ListTile), findsNothing);
   });
 
+  testWidgets('队列弹窗 GlassOverlay 不传 tint（回归：雾中段黑带）', (tester) async {
+    await pumpPlayer(tester);
+
+    await tester.tap(find.byKey(const ValueKey('player-queue-button')));
+    await tester.pumpAndSettle();
+
+    // 队列弹窗的玻璃容器（含列表内非当前曲目的『晨光』行）。
+    // tint 会使雾渐变中段被染成黑色，形成中间黑带；回归锁定为不传。
+    final glass = tester.widget<GlassOverlay>(
+      find
+          .ancestor(
+            of: find.text('晨光'),
+            matching: find.byType(GlassOverlay),
+          )
+          .first,
+    );
+    expect(glass.tint, isNull);
+  });
+
   testWidgets('移动端：队列弹窗高度不超过屏高 50%，超出内容滚动', (tester) async {
     // 移动端视口（390 × 844）：高度上限 = 422。
     final engine = FakeAudioEngine();
@@ -611,6 +630,19 @@ void main() {
     // 竖向窗口：明显窄于旧版（116），且不至于过窄不可用。
     expect(rect.width, lessThan(90));
     expect(rect.width, greaterThan(40));
+  });
+
+  testWidgets('播放页音量：弹窗不传 tint（回归：雾中段色带）', (tester) async {
+    await pumpPlayer(tester);
+
+    await tester.tap(find.byKey(const ValueKey('player-volume-button')));
+    await tester.pumpAndSettle();
+
+    // 音量窗的 key 就在 GlassOverlay 上。
+    final glass = tester.widget<GlassOverlay>(
+      find.byKey(const ValueKey('player-volume-popover')),
+    );
+    expect(glass.tint, isNull);
   });
 
   testWidgets('TC-20 按钮布局轮换：队列上移至传输行，音量/歌词在底行', (tester) async {

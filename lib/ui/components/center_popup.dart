@@ -39,6 +39,9 @@ class GlassPopupTextTheme extends StatelessWidget {
 /// 背景模糊目标强度（与玻璃体自身模糊量级一致，避免过糊）。
 const double _popupBackdropSigma = 12;
 
+/// 弹窗默认宽度上限：列表型弹窗内容会撑满此宽，各弹窗宽度以此为准。
+const double centerPopupWidth = 440;
+
 /// 统一的居中弹窗：所有弹窗（选择菜单 / 底部弹层 / 弹框）都从窗口中间弹出，
 /// 桌面端与移动端行为一致。
 ///
@@ -57,7 +60,11 @@ const double _popupBackdropSigma = 12;
 Future<T?> showCenterPopup<T>(
   BuildContext context, {
   required Widget child,
-  double maxWidth = 440,
+
+  /// 固定宽度：传入后弹窗恒为该宽（仍按屏宽 80% 钳制），
+  /// 不随内容收窄；不传则按内容自适应，上限 [maxWidth]。
+  double? width,
+  double maxWidth = centerPopupWidth,
   double? maxHeight,
 }) {
   // 桌面端左侧栏宽度；弹窗水平基准 = 内容区中心 = 整屏中心 + 侧栏宽/2。
@@ -109,6 +116,8 @@ Future<T?> showCenterPopup<T>(
     pageBuilder: (dialogCtx, _, _) {
       final size = MediaQuery.sizeOf(dialogCtx);
       final isMobile = sideInset <= 0;
+      // 实际宽度上限：固定 [width] 优先，否则用 [maxWidth]，均按屏宽 80% 钳制。
+      final maxW = math.min(width ?? maxWidth, size.width * 0.8);
       return Center(
         child: Transform.translate(
           offset: Offset(sideInset / 2, 0),
@@ -125,7 +134,9 @@ Future<T?> showCenterPopup<T>(
               removeRight: true,
               child: ConstrainedBox(
                 constraints: BoxConstraints(
-                  maxWidth: math.min(maxWidth, size.width * 0.8),
+                  // 固定宽度时 minWidth = maxWidth，弹窗不被短内容收窄。
+                  minWidth: width != null ? maxW : 0,
+                  maxWidth: maxW,
                   maxHeight: maxHeight ?? size.height * (isMobile ? 0.5 : 0.8),
                 ),
                 child: child,

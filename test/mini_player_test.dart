@@ -3,6 +3,7 @@ import 'dart:io' show Directory, File;
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/gestures.dart' show PointerScrollEvent;
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -376,6 +377,21 @@ void main() {
           .first,
     );
     expect(glass.radius, AppTokens.radiusPill);
+  });
+
+  testWidgets('桌面端：迷你条胶囊宽度收窄为 380 且保留液态玻璃', (tester) async {
+    await pumpWithQueue(tester, viewport: const Size(1400, 900));
+
+    final glass = tester.widget<GlassOverlay>(
+      find
+          .ancestor(of: find.text('夜曲'), matching: find.byType(GlassOverlay))
+          .first,
+    );
+    // 液态玻璃保留（雾基色分模式：浅色白基）。
+    expect(glass.fogColor, Colors.white);
+
+    // 固定宽度收窄：480 → 380。
+    expect(tester.getRect(find.byType(MiniPlayer)).width, 380);
   });
 
   testWidgets('桌面端：迷你条不显示底部进度线', (tester) async {

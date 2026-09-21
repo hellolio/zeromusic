@@ -529,6 +529,11 @@ class _SwipeableCapsuleState extends State<_SwipeableCapsule>
           pressTick: widget.pressTick,
           child: GlassOverlay(
             radius: AppTokens.radiusPill,
+            // 雾基色分模式（同底栏）：浅色更白、深色更黑，提升文字对比。
+            fogColor:
+                Theme.of(context).brightness == Brightness.dark
+                    ? Colors.black
+                    : Colors.white,
             child: ClipRRect(
               // 全胶囊圆角：圆角直径 = 条高（radiusPill 会被 RRect 自动钳制为高的一半）。
               borderRadius: BorderRadius.circular(AppTokens.radiusPill),
@@ -743,13 +748,19 @@ class _DesktopMiniPlayer extends StatelessWidget {
         onTap: onTap,
         // 桌面端胶囊固定在 Positioned(right/bottom) 中，宽度无约束；
         // 给定固定宽度避免 stretch 纵向布局收到无限宽约束。
+        // 宽度收窄（480 → 380）：对标 Apple Music 迷你条的紧凑感。
         child: SizedBox(
-          width: 480,
+          width: 380,
           child: _Rebound(
             bounceTick: bounceTick,
             pressTick: pressTick,
             child: GlassOverlay(
               radius: AppTokens.radiusPill,
+              // 雾基色分模式（同底栏/移动迷你条）：浅色更白、深色更黑。
+              fogColor:
+                  Theme.of(context).brightness == Brightness.dark
+                      ? Colors.black
+                      : Colors.white,
               padding: const EdgeInsets.symmetric(
                 horizontal: AppTokens.spaceM,
                 vertical: AppTokens.spaceXxs,

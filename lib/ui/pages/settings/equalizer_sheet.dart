@@ -15,8 +15,13 @@ String equalizerValueLabel(AppStrings strings, EqualizerState state) {
 }
 
 /// 打开均衡器弹层：窗口居中（桌面/移动一致，复用统一弹窗动效）。
+/// 固定宽度与其他弹窗一致：避免「不支持」等短文案分支把窗口收窄。
 Future<void> showEqualizerSheet(BuildContext context) {
-  return showCenterPopup<void>(context, child: const EqualizerSheet());
+  return showCenterPopup<void>(
+    context,
+    width: centerPopupWidth,
+    child: const EqualizerSheet(),
+  );
 }
 
 /// 均衡器弹层：三态降级。

@@ -1365,9 +1365,7 @@ class _VolumePopover extends ConsumerWidget {
       child: GlassOverlay(
         key: const ValueKey('player-volume-popover'),
         radius: AppTokens.radiusM,
-        tint: theme.brightness == Brightness.dark
-            ? Colors.black.withValues(alpha: 0.4)
-            : Colors.white.withValues(alpha: 0.8),
+        // 不传 tint：与其他弹窗一致的统一灰雾，避免雾渐变中段出现色带。
         padding: EdgeInsets.zero,
         child: Column(
           children: [
@@ -1418,7 +1416,7 @@ Future<void> _showQueueSheet(BuildContext context, WidgetRef ref) async {
     context,
     child: GlassOverlay(
       radius: AppTokens.radiusL,
-      tint: Colors.black.withValues(alpha: 0.55),
+      // 不传 tint：与其他弹窗一致的统一灰雾，避免雾渐变中段出现黑色色带。
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [

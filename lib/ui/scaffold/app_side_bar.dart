@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 
 import '../../core/localization/app_strings.dart';
 import '../../core/theme/app_tokens.dart';
-import '../components/glass_overlay.dart';
 
 /// 桌面端左侧边栏（Apple Music 风格）。
 ///
@@ -164,17 +163,19 @@ class _SideBarItem extends StatelessWidget {
       ),
       child: SizedBox(
         width: double.infinity,
-        child: GlassOverlay(
-          radius: AppTokens.radiusPill,
-          blur: 12,
-          border: false,
-          shadow: false,
-          highlight: false,
-          // 中性白底选中态（与玻璃同色系），不带蓝色色相；
-          // 选中强调色由下方图标/文字（accent）承担。
-          tint: selected
-              ? Colors.white.withValues(alpha: isDark ? 0.12 : 0.40)
-              : Colors.transparent,
+        // Apple Music 式实色导航项：不用液态玻璃。未选中透明，
+        // 选中为中性半透明实色 pill（与分隔线同一套黑/白透明度），
+        // 选中强调色由下方图标/文字（accent）承担。
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color:
+                selected
+                    ? (isDark
+                          ? Colors.white.withValues(alpha: 0.12)
+                          : Colors.black.withValues(alpha: 0.06))
+                    : Colors.transparent,
+            borderRadius: BorderRadius.circular(AppTokens.radiusPill),
+          ),
           child: InkWell(
             key: itemKey,
             borderRadius: BorderRadius.circular(AppTokens.radiusPill),

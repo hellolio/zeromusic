@@ -146,15 +146,17 @@ class _GlassNavBarState extends State<GlassNavBar> {
 
   @override
   Widget build(BuildContext context) {
+    // 雾基色分模式：浅色用白基雾（更白）、深色用黑基雾（更黑），
+    // 避免默认灰雾把未选中文字呵得发灰不清。
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return SizedBox(
       height: GlassNavBar.height,
       child: GlassOverlay(
         radius: GlassNavBar.height / 2,
         blur: 10,
+        fogColor: isDark ? Colors.black : Colors.white,
         child: LayoutBuilder(
           builder: (context, constraints) {
-            final theme = Theme.of(context);
-            final isDark = theme.brightness == Brightness.dark;
             final count = widget.destinations.length;
             final itemWidth = constraints.maxWidth / count;
             final scrub = _scrub;

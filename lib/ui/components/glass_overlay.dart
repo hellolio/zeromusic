@@ -29,6 +29,7 @@ class GlassOverlay extends StatelessWidget {
     this.blur = 12,
     this.radius = AppTokens.radiusL,
     this.tint,
+    this.fogColor,
     this.padding = EdgeInsets.zero,
     this.border = true,
     this.shadow = true,
@@ -39,6 +40,11 @@ class GlassOverlay extends StatelessWidget {
   final double blur;
   final double radius;
   final Color? tint;
+
+  /// 雾基色替换：不传时用默认灰雾 [AppTokens.glassFog]；传入时上/中/下三段
+  /// 雾全部改用该基色（仅替换基色，透明度仍由 [_GlassSpec] 标定）。
+  /// 用于需要「更白/更黑」玻璃底的场景（底栏、迷你条），避免灰雾压灰文字。
+  final Color? fogColor;
   final EdgeInsets padding;
 
   /// 是否绘制水滴凸起描边（渐变亮圈）。
@@ -55,9 +61,10 @@ class GlassOverlay extends StatelessWidget {
     final spec = Theme.of(context).brightness == Brightness.dark
         ? _GlassSpec.dark
         : _GlassSpec.light;
-    // 灰雾中段：[tint] 仅替换中段（如选中态、播放页的强调底），上下两段
-    // 仍走灰雾，保持「水」的统一材质感。
-    final fogMid = tint ?? AppTokens.glassFog.withValues(alpha: spec.fogMid);
+    // 雾基色：[fogColor] 优先，否则用默认灰雾；[tint] 仅替换中段（如选中态、
+    // 播放页的强调底），上下两段仍走同一基色，保持「水」的统一材质感。
+    final fogBase = fogColor ?? AppTokens.glassFog;
+    final fogMid = tint ?? fogBase.withValues(alpha: spec.fogMid);
 
     return Container(
       decoration: BoxDecoration(
@@ -95,9 +102,9 @@ class GlassOverlay extends StatelessWidget {
                         begin: Alignment.topCenter,
                         end: Alignment.bottomCenter,
                         colors: [
-                          AppTokens.glassFog.withValues(alpha: spec.fogTop),
+                          fogBase.withValues(alpha: spec.fogTop),
                           fogMid,
-                          AppTokens.glassFog.withValues(alpha: spec.fogBottom),
+                          fogBase.withValues(alpha: spec.fogBottom),
                         ],
                       ),
                     ),

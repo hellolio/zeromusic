@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:zeromusic/services/audio/equalizer_controller.dart';
 import 'package:zeromusic/services/preferences/preferences_controller.dart';
+import 'package:zeromusic/ui/components/center_popup.dart';
 import 'package:zeromusic/ui/pages/settings/equalizer_sheet.dart';
 import 'package:zeromusic/ui/pages/settings/settings_page.dart';
 
@@ -281,6 +282,18 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byType(EqualizerSheet), findsOneWidget);
     }
+
+    testWidgets('TC-EQ-12 弹窗宽度与其他弹窗一致（不被短文案收窄）', (tester) async {
+      await pumpSettings(tester);
+      await openSheet(tester);
+
+      // 不支持分支只有短文案：宽度仍应为统一弹窗宽 440
+      // （viewport 800 → 80% 钳制 640，不生效）。
+      expect(
+        tester.getSize(find.byType(EqualizerSheet)).width,
+        centerPopupWidth,
+      );
+    });
 
     testWidgets('TC-EQ-01 不支持平台降级：行值与弹层说明', (tester) async {
       await pumpSettings(tester);

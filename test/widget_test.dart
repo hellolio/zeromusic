@@ -5,6 +5,7 @@ import 'package:riverpod/misc.dart' show Override;
 import 'package:zeromusic/core/theme/app_tokens.dart';
 import 'package:zeromusic/services/audio/audio_controller.dart';
 import 'package:zeromusic/services/audio/track.dart';
+import 'package:zeromusic/ui/components/glass_overlay.dart';
 import 'package:zeromusic/ui/mini_player/mini_player.dart';
 import 'package:zeromusic/ui/pages/import/import_page.dart';
 import 'package:zeromusic/ui/pages/player/player_page.dart';
@@ -137,6 +138,39 @@ void main() {
       ),
       findsOneWidget,
     );
+  });
+
+  testWidgets('底栏与迷你条：雾基色按明暗模式取白/黑基（提升文字对比）', (tester) async {
+    await pumpApp(tester, overrides: _trackedOverride);
+
+    // 浅色模式（测试环境默认）：雾基色为白基（更白，不是默认灰雾）。
+    Color navFog() => tester
+        .widget<GlassOverlay>(
+          find.descendant(
+            of: find.byType(GlassNavBar),
+            matching: find.byType(GlassOverlay),
+          ),
+        )
+        .fogColor!;
+    Color miniFog() => tester
+        .widget<GlassOverlay>(
+          find
+              .descendant(
+                of: find.byType(MiniPlayer),
+                matching: find.byType(GlassOverlay),
+              )
+              .first,
+        )
+        .fogColor!;
+    expect(navFog(), Colors.white);
+    expect(miniFog(), Colors.white);
+
+    // 深色模式：雾基色为黑基（更黑）。预先设好亮度再构建。
+    tester.platformDispatcher.platformBrightnessTestValue = Brightness.dark;
+    addTearDown(tester.platformDispatcher.clearPlatformBrightnessTestValue);
+    await pumpApp(tester, overrides: _trackedOverride);
+    expect(navFog(), Colors.black);
+    expect(miniFog(), Colors.black);
   });
 
   testWidgets('迷你条：点播放/暂停按钮切换 isPlaying', (tester) async {
@@ -333,6 +367,39 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(PlayerPage), findsNothing);
     expect(find.byType(MiniPlayer), findsOneWidget);
+  });
+
+  testWidgets('桌面端：侧栏导航项不再使用液态玻璃，选中项为实色 pill', (tester) async {
+    tester.view.physicalSize = const Size(1400, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    await pumpApp(tester);
+
+    // 导航项内不再有 GlassOverlay（Apple Music 式实色项，非玻璃）。
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('sidebar-playlist')),
+        matching: find.byType(GlassOverlay),
+      ),
+      findsNothing,
+    );
+
+    // 选中项（播放列表）有实色背景，未选中项（导入）透明。
+    Color? pillColor(Key key) => (tester
+            .widget<DecoratedBox>(
+              find
+                  .ancestor(
+                    of: find.byKey(key),
+                    matching: find.byType(DecoratedBox),
+                  )
+                  .first,
+            )
+            .decoration as BoxDecoration)
+        .color;
+    expect(pillColor(const ValueKey('sidebar-playlist')),
+        Colors.black.withValues(alpha: 0.06));
+    expect(pillColor(const ValueKey('sidebar-import')), Colors.transparent);
   });
 
   testWidgets('桌面端：侧栏导航项胶囊占满侧栏宽度，整行可点', (tester) async {
