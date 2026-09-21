@@ -37,6 +37,12 @@ abstract final class AppTokens {
   static const Color favorite = Color(0xFFFF2D55);
   static const Color lyricsHighlight = Color(0xFF0A84FF);
 
+  // ---- 玻璃（液态玻璃水感） ----
+  /// 玻璃雾化基色：中性灰（iOS systemGray）。浅/深两模式共用同一基色，
+  /// 靠透明度合成出「把背景压缩向灰」的水雾：深色上读作柔灰玻璃，浅色上
+  /// 读作浅灰玻璃（对标 Apple Music 迷你条），不靠提白发亮。
+  static const Color glassFog = Color(0xFF8E8E93);
+
   // ---- 浅色 ----
   static const Color lightBackground = Color(0xFFF2F2F7);
   static const Color lightSurface = Color(0xFFFFFFFF);

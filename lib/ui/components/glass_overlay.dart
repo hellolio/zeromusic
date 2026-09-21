@@ -7,14 +7,19 @@ import '../../core/theme/app_tokens.dart';
 
 /// 液体玻璃容器：iOS 风格 BackdropFilter 磨砂 + 水滴玻璃质感（对标 Apple Music 迷你条）。
 ///
-/// 特征克制而精致，边缘呈水滴「凸起」：
-/// - **通透磨砂**：`BackdropFilter` 高斯模糊 + 极低透明度中性底色（黑白灰，
-///   不带色相），背景清晰透出，水一样通透；
-/// - **水滴亮圈（bevel）**：用**渐变描边**勾勒边缘——左上受光最亮、
-///   渐暗到右下微暗，形成水滴/玻璃「凸起」的立体轮廓；
-/// - **顶部受光**：较明显的白色渐变（仅上部一小段），模拟水滴折射 specular；
-/// - **柔和外阴影**：近接触细影 + 环境软影，轻浮起、与背景自然分离；
-///   深色下刻意减淡避免黑块感。
+/// 「水」的表达全在光学，不在亮度：
+/// - **灰雾体**：`BackdropFilter` 高斯模糊 + 中性灰雾（[AppTokens.glassFog]），
+///   把背后的内容**压缩向灰**——亮处压暗、暗处提亮，像隔着水看东西，
+///   通透且不发白；
+/// - **水滴亮圈（bevel）**：边缘渐变描边——左上受光亮线、快速衰减，
+///   右下先有一段「厚度暗环」再接一丝**底部焦散亮线**（光穿过水滴
+///   聚焦在下缘），这是水滴最典型的轮廓特征；
+/// - **窄幅 specular**：仅顶部一小段的高光渐变，克制不糊成白雾；
+/// - **柔和外阴影**：近接触细影 + 环境软影，水滴「坐」在表面上。
+///
+/// **浅色/深色共用一套代码**：所有视觉量集中在 [_GlassSpec] 一张参数表里，
+/// 浅色为基准；深色只调「灰雾略浓、暗环略重」两组值。雾基色两模式共用，
+/// 亮度由透明度合成自然得出，不存在「深色提亮」的分支逻辑。
 ///
 /// 用于导航栏、迷你播放条、弹窗背景等所有「玻璃面」。
 class GlassOverlay extends StatelessWidget {
@@ -47,14 +52,12 @@ class GlassOverlay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    // 中性透亮底色：仅用黑白灰与透明度表达「水感磨砂」，不带任何色相。
-    // 透明度刻意压到极低（浅色 0.09 / 深色 0.07）+ 低模糊，让背后的内容
-    // 清晰透出，保证「看见背后元素」的通透感。
-    final defaultTint = isDark
-        ? Colors.white.withValues(alpha: 0.07)
-        : Colors.white.withValues(alpha: 0.09);
-    final bodyBase = tint ?? defaultTint;
+    final spec = Theme.of(context).brightness == Brightness.dark
+        ? _GlassSpec.dark
+        : _GlassSpec.light;
+    // 灰雾中段：[tint] 仅替换中段（如选中态、播放页的强调底），上下两段
+    // 仍走灰雾，保持「水」的统一材质感。
+    final fogMid = tint ?? AppTokens.glassFog.withValues(alpha: spec.fogMid);
 
     return Container(
       decoration: BoxDecoration(
@@ -63,13 +66,13 @@ class GlassOverlay extends StatelessWidget {
             ? [
                 // 近接触细影：贴在下缘 2–3px，营造水滴「坐在」表面上的深度。
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: isDark ? 0.24 : 0.10),
+                  color: Colors.black.withValues(alpha: spec.shadowNear),
                   blurRadius: 4,
                   offset: const Offset(0, 2),
                 ),
-                // 环境软影：轻浮起、与背景自然分离（深色下明显减淡）。
+                // 环境软影：轻浮起、与背景自然分离。
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: isDark ? 0.16 : 0.06),
+                  color: Colors.black.withValues(alpha: spec.shadowAmbient),
                   blurRadius: 18,
                   offset: const Offset(0, 6),
                 ),
@@ -84,24 +87,18 @@ class GlassOverlay extends StatelessWidget {
             color: Colors.transparent,
             child: Stack(
               children: [
-                // 通透玻璃体：上亮下清（凸起的受光方向），背景透出。
+                // 灰雾玻璃体：上略浓下沉（水滴受光方向），背景被压缩向灰透出。
                 Positioned.fill(
                   child: DecoratedBox(
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
                         begin: Alignment.topCenter,
                         end: Alignment.bottomCenter,
-                        colors: isDark
-                            ? [
-                                Colors.white.withValues(alpha: 0.12),
-                                bodyBase,
-                                Colors.white.withValues(alpha: 0.03),
-                              ]
-                            : [
-                                Colors.white.withValues(alpha: 0.15),
-                                bodyBase,
-                                Colors.white.withValues(alpha: 0.03),
-                              ],
+                        colors: [
+                          AppTokens.glassFog.withValues(alpha: spec.fogTop),
+                          fogMid,
+                          AppTokens.glassFog.withValues(alpha: spec.fogBottom),
+                        ],
                       ),
                     ),
                   ),
@@ -114,14 +111,12 @@ class GlassOverlay extends StatelessWidget {
                           gradient: LinearGradient(
                             begin: Alignment.topCenter,
                             end: Alignment.bottomCenter,
-                            stops: const [0.0, 0.22, 0.55, 1.0],
+                            // 窄幅 specular：只在水滴上缘一小段受光，0.14 内
+                            // 衰减殆尽，不形成整面白雾。
+                            stops: const [0.0, 0.14, 0.4, 1.0],
                             colors: [
-                              Colors.white.withValues(
-                                alpha: isDark ? 0.13 : 0.16,
-                              ),
-                              Colors.white.withValues(
-                                alpha: isDark ? 0.04 : 0.05,
-                              ),
+                              Colors.white.withValues(alpha: spec.specularTop),
+                              Colors.white.withValues(alpha: spec.specularFade),
                               Colors.white.withValues(alpha: 0.0),
                               Colors.white.withValues(alpha: 0.0),
                             ],
@@ -134,10 +129,7 @@ class GlassOverlay extends StatelessWidget {
                   Positioned.fill(
                     child: IgnorePointer(
                       child: CustomPaint(
-                        painter: _DropletRimPainter(
-                          isDark: isDark,
-                          radius: radius,
-                        ),
+                        painter: _DropletRimPainter(spec: spec, radius: radius),
                       ),
                     ),
                   ),
@@ -151,13 +143,84 @@ class GlassOverlay extends StatelessWidget {
   }
 }
 
-/// 水滴「凸起」边缘：沿圆角外缘画一圈**渐变描边**。
-/// 受光高光只集中在上左角并**快速衰减**（避免整条边泛白、无过渡），
-/// 右下仅存一丝微暗形成 bevel 立体感；描边极细，克制不抢眼。
-class _DropletRimPainter extends CustomPainter {
-  const _DropletRimPainter({required this.isDark, required this.radius});
+/// 「水感」参数表：浅色/深色共用同一组件、同一组字段，只在此处各标定一份值。
+/// 取值原则：**灰靠雾基色（中性灰）而非白雾提亮**——雾把背景压缩向灰；
+/// **水滴感靠边缘光学**——受光亮圈、厚度暗环、底部焦散线都收在 rim 五段
+/// 渐变里，克制不抢内容。
+class _GlassSpec {
+  const _GlassSpec({
+    required this.fogTop,
+    required this.fogMid,
+    required this.fogBottom,
+    required this.specularTop,
+    required this.specularFade,
+    required this.rim,
+    required this.shadowNear,
+    required this.shadowAmbient,
+  });
 
-  final bool isDark;
+  /// 灰雾玻璃体（上→中→下）：雾基色 [AppTokens.glassFog] 的透明度。
+  final double fogTop;
+  final double fogMid;
+  final double fogBottom;
+
+  /// 顶部窄幅 specular 高光（stops 0 / 0.14，随后完全透明）。
+  final double specularTop;
+  final double specularFade;
+
+  /// 水滴亮圈五段渐变（沿左上→右下）：上左受光亮线 → 快速衰减 → 透明
+  /// → 厚度暗环 → 底部焦散亮线。
+  final List<Color> rim;
+
+  /// 外阴影：近接触细影 / 环境软影的黑度。
+  final double shadowNear;
+  final double shadowAmbient;
+
+  /// 浅色（基准标定）：白底上灰雾合成出 ~#E1 浅灰玻璃。
+  static const light = _GlassSpec(
+    fogTop: 0.28,
+    fogMid: 0.26,
+    fogBottom: 0.22,
+    specularTop: 0.15,
+    specularFade: 0.04,
+    rim: [
+      Color(0x8CFFFFFF), // white@0.55 上左角受光亮线
+      Color(0x24FFFFFF), // white@0.14 快速衰减
+      Color(0x00FFFFFF), // 透明
+      Color(0x14000000), // black@0.08 厚度暗环
+      Color(0x33FFFFFF), // white@0.20 底部焦散亮线
+    ],
+    shadowNear: 0.10,
+    shadowAmbient: 0.06,
+  );
+
+  /// 深色：灰雾略浓（黑底上合成 ~#2D 柔灰，不提白），暗环略重衬托
+  /// 焦散线；阴影收敛，避免黑块感。
+  static const dark = _GlassSpec(
+    fogTop: 0.36,
+    fogMid: 0.32,
+    fogBottom: 0.26,
+    specularTop: 0.12,
+    specularFade: 0.03,
+    rim: [
+      Color(0x66FFFFFF), // white@0.40 上左角受光亮线
+      Color(0x1AFFFFFF), // white@0.10 快速衰减
+      Color(0x00FFFFFF), // 透明
+      Color(0x24000000), // black@0.14 厚度暗环
+      Color(0x29FFFFFF), // white@0.16 底部焦散亮线
+    ],
+    shadowNear: 0.16,
+    shadowAmbient: 0.10,
+  );
+}
+
+/// 水滴「凸起」边缘：沿圆角外缘画一圈**五段渐变描边**。
+/// 高光只落在上左角并**快速衰减**；右下先压一段厚度暗环、再以一丝亮线
+/// 收尾（光穿过水滴聚焦在下缘的焦散），立体轮廓一眼是「水滴」。
+class _DropletRimPainter extends CustomPainter {
+  const _DropletRimPainter({required this.spec, required this.radius});
+
+  final _GlassSpec spec;
   final double radius;
 
   @override
@@ -174,27 +237,13 @@ class _DropletRimPainter extends CustomPainter {
       ..shader = LinearGradient(
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
-        // 高光只落在上左角，0.05 内已衰减大半，0.18 处完全透明，
-        // 让左/上边缘有「过渡」，而不是一整条白线。
-        stops: const [0.0, 0.05, 0.18, 1.0],
-        colors: isDark
-            ? const [
-                Color(0x59FFFFFF), // white@0.35 上左角受光
-                Color(0x14FFFFFF), // white@0.08 快速衰减
-                Color(0x00FFFFFF), // 透明
-                Color(0x2E000000), // black@0.18 右下微暗
-              ]
-            : const [
-                Color(0x8CFFFFFF), // white@0.55 上左角受光
-                Color(0x24FFFFFF), // white@0.14 快速衰减
-                Color(0x00FFFFFF), // 透明
-                Color(0x12000000), // black@0.07 右下微暗
-              ],
+        stops: const [0.0, 0.06, 0.55, 0.9, 1.0],
+        colors: spec.rim,
       ).createShader(rect);
     canvas.drawRRect(rrect, paint);
   }
 
   @override
   bool shouldRepaint(_DropletRimPainter oldDelegate) =>
-      oldDelegate.isDark != isDark || oldDelegate.radius != radius;
+      oldDelegate.spec != spec || oldDelegate.radius != radius;
 }

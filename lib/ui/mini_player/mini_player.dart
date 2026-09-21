@@ -528,7 +528,6 @@ class _SwipeableCapsuleState extends State<_SwipeableCapsule>
           bounceTick: widget.bounceTick,
           pressTick: widget.pressTick,
           child: GlassOverlay(
-            blur: 8,
             radius: AppTokens.radiusPill,
             child: ClipRRect(
               // 全胶囊圆角：圆角直径 = 条高（radiusPill 会被 RRect 自动钳制为高的一半）。
@@ -750,7 +749,6 @@ class _DesktopMiniPlayer extends StatelessWidget {
             bounceTick: bounceTick,
             pressTick: pressTick,
             child: GlassOverlay(
-              blur: 8,
               radius: AppTokens.radiusPill,
               padding: const EdgeInsets.symmetric(
                 horizontal: AppTokens.spaceM,
