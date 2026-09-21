@@ -98,7 +98,7 @@ class SettingsPage extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(title: Text(strings.navSettings)),
-      // 列表项进入：淡入 + 位移动画；减弱动态效果时直接呈现。
+      // 列表项进入：淡入 + 位移动画；
       body: TweenAnimationBuilder<double>(
         duration: motionReduced ? Duration.zero : AppCurves.standardMotion,
         curve: AppCurves.standard,
