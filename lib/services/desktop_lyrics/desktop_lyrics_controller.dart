@@ -63,7 +63,8 @@ class DesktopLyricsController extends Notifier<bool> {
       }
     });
 
-    // 歌词条回传事件：只写偏好，其余交给响应式重建。
+    // 歌词条回传事件：✕/位置只写偏好，其余交给响应式重建；
+    // ready（引擎就绪）→ 立即补推当前态（冷启动窗口期推送曾被丢弃）。
     final sub = ref.read(lyricWindowApiProvider).events.listen((event) {
       final prefsNotifier = ref.read(preferencesProvider.notifier);
       switch (event) {
@@ -71,6 +72,12 @@ class DesktopLyricsController extends Notifier<bool> {
           unawaited(prefsNotifier.setDesktopLyricsEnabled(false));
         case LyricBarPositionSavedEvent(:final position):
           unawaited(prefsNotifier.setDesktopLyricsOffset(position));
+        case LyricBarReadyEvent():
+          if (state) {
+            ref
+                .read(lyricWindowApiProvider)
+                .pushState(ref.read(desktopLyricsStateProvider));
+          }
       }
     });
     ref.onDispose(sub.cancel);
@@ -95,6 +102,10 @@ class DesktopLyricsController extends Notifier<bool> {
       await api.configure(config);
     } else {
       await api.open(config);
+      if (!ref.mounted) return;
+      // 打开即推当前态：fake/测试立即生效；真实路径若子引擎尚未注册
+      // handler 则此推被丢弃，由 ready 握手后的补推兑底。
+      api.pushState(ref.read(desktopLyricsStateProvider));
     }
   }
 

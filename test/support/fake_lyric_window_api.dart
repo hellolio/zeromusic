@@ -61,6 +61,9 @@ class FakeLyricWindowApi implements LyricWindowApi {
   /// 模拟歌词条内 ✕ 被点击。
   void emitClosed() => _events.add(const LyricBarClosedEvent());
 
+  /// 模拟歌词条子窗口引擎就绪（push handler 已注册）。
+  void emitReady() => _events.add(const LyricBarReadyEvent());
+
   /// 模拟歌词条拖动结束回传位置。
   void emitPosition(Offset position) =>
       _events.add(LyricBarPositionSavedEvent(position));

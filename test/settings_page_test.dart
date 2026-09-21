@@ -280,9 +280,9 @@ void main() {
   group('均衡器', () {
     /// 弹层内的滑杆（避开设置页底层的音量滑杆）。
     Finder bandSlider(int index) => find.descendant(
-          of: find.byType(EqualizerSheet),
-          matching: find.byKey(ValueKey('equalizer-band-$index')),
-        );
+      of: find.byType(EqualizerSheet),
+      matching: find.byKey(ValueKey('equalizer-band-$index')),
+    );
 
     Future<void> openSheet(WidgetTester tester) async {
       await tester.tap(find.byKey(const ValueKey('settings-equalizer')));
@@ -325,7 +325,11 @@ void main() {
     testWidgets('TC-EQ-02 未就绪：开关可用并提示先播放', (tester) async {
       final eq = FakeEqualizer(autoReady: false);
       final store = InMemoryPreferencesStore();
-      await pumpSettings(tester, engine: FakeAudioEngine(equalizer: eq), store: store);
+      await pumpSettings(
+        tester,
+        engine: FakeAudioEngine(equalizer: eq),
+        store: store,
+      );
 
       expect(find.text('Off'), findsOneWidget);
       await openSheet(tester);
@@ -347,7 +351,11 @@ void main() {
       final store = InMemoryPreferencesStore(
         const AppPreferences(equalizerEnabled: true),
       );
-      await pumpSettings(tester, engine: FakeAudioEngine(equalizer: eq), store: store);
+      await pumpSettings(
+        tester,
+        engine: FakeAudioEngine(equalizer: eq),
+        store: store,
+      );
       await openSheet(tester);
 
       // 5 条频段滑杆 + 预设 + 重置渲染。
@@ -383,10 +391,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(prefsAt(tester).equalizerGains, EqualizerPreset.rock.curve);
-      expect(
-        [for (final b in eq.bands) b.gain],
-        EqualizerPreset.rock.curve,
-      );
+      expect([for (final b in eq.bands) b.gain], EqualizerPreset.rock.curve);
     });
 
     testWidgets('TC-EQ-05 重置为平直', (tester) async {

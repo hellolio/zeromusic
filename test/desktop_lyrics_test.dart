@@ -50,16 +50,21 @@ void main() {
         LyricBarMessenger.decodeHostEvent('closed', null),
         isA<LyricBarClosedEvent>(),
       );
+      // 引擎就绪事件（无参数）。
+      expect(
+        LyricBarMessenger.decodeHostEvent('ready', null),
+        isA<LyricBarReadyEvent>(),
+      );
       final pos = LyricBarMessenger.decodeHostEvent('position', {
         'x': 1.0,
         'y': 2.0,
       });
-      expect(
-        (pos as LyricBarPositionSavedEvent).position,
-        const Offset(1, 2),
-      );
+      expect((pos as LyricBarPositionSavedEvent).position, const Offset(1, 2));
       // 非法 / 未知消息返回 null。
-      expect(LyricBarMessenger.decodeHostEvent('position', {'x': 'bad'}), isNull);
+      expect(
+        LyricBarMessenger.decodeHostEvent('position', {'x': 'bad'}),
+        isNull,
+      );
       expect(LyricBarMessenger.decodeHostEvent('other', null), isNull);
     });
 
@@ -121,7 +126,8 @@ void main() {
   });
 
   group('DesktopLyricsController 编排', () {
-    const lrc = '[00:01] First line\n[00:05] Second line\n'
+    const lrc =
+        '[00:01] First line\n[00:05] Second line\n'
         '[00:09] \n[00:13] Last line\n';
 
     // 冲刷异步链（偏好载入 / 引擎流 / Riverpod 调度级联）。
@@ -134,11 +140,11 @@ void main() {
     }
 
     Track track(String id, {String? title, String? artist}) => Track(
-          id: id,
-          title: title ?? 'Song $id',
-          artist: artist,
-          filePath: '/test/$id.mp3',
-        );
+      id: id,
+      title: title ?? 'Song $id',
+      artist: artist,
+      filePath: '/test/$id.mp3',
+    );
 
     ProviderContainer makeContainer({
       AppPreferences prefs = const AppPreferences(desktopLyricsEnabled: true),
@@ -171,11 +177,7 @@ void main() {
           desktopLyricsOffset: Offset(30, 40),
         ),
       );
-      final container = makeContainer(
-        engine: engine,
-        store: store,
-        api: api,
-      );
+      final container = makeContainer(engine: engine, store: store, api: api);
       addTearDown(container.dispose);
 
       container.read(desktopLyricsControllerProvider);
@@ -188,6 +190,9 @@ void main() {
       expect(config.offset, const Offset(30, 40));
       expect(config.initialState.hasTrack, isFalse); // 未播放
       expect(api.closeCount, 0);
+      // 启动恢复即推当前状态（不依赖子引擎就绪后才有首帧数据）。
+      expect(api.pushedStates, isNotEmpty);
+      expect(api.pushedStates.first, config.initialState);
     });
 
     test('TC-08 开关=关：不打开窗口', () async {
@@ -215,11 +220,7 @@ void main() {
       final store = InMemoryPreferencesStore(
         const AppPreferences(desktopLyricsEnabled: true),
       );
-      final container = makeContainer(
-        engine: engine,
-        store: store,
-        api: api,
-      );
+      final container = makeContainer(engine: engine, store: store, api: api);
       addTearDown(container.dispose);
 
       container.read(desktopLyricsControllerProvider);
@@ -258,6 +259,41 @@ void main() {
 
       expect(api.openState, isTrue);
       expect(store.lastSaved.desktopLyricsEnabled, isTrue);
+      // open 完成即推当前状态（TC-29 前半：不依赖行变化）。
+      expect(api.pushedStates, isNotEmpty);
+    });
+
+    test('TC-29 ready 握手：引擎就绪后补推当前态；关闭后不再推送', () async {
+      final api = FakeLyricWindowApi();
+      final engine = FakeAudioEngine();
+      final store = InMemoryPreferencesStore(
+        const AppPreferences(desktopLyricsEnabled: true),
+      );
+      final container = makeContainer(engine: engine, store: store, api: api);
+      addTearDown(container.dispose);
+
+      container.read(desktopLyricsControllerProvider);
+      await settle(container);
+      expect(api.openState, isTrue);
+
+      // 引擎就绪 → 恰好补推一次（覆盖冷启动窗口期被丢弃的推送）。
+      final before = api.pushedStates.length;
+      api.emitReady();
+      await settle(container);
+      expect(api.pushedStates.length, before + 1);
+      expect(api.pushedStates.last.hasTrack, isFalse); // 未播放占位
+
+      // 开关已关 → ready 不再触发推送。
+      await container
+          .read(preferencesProvider.notifier)
+          .setDesktopLyricsEnabled(false);
+      await settle(container);
+      expect(api.openState, isFalse);
+
+      final afterClose = api.pushedStates.length;
+      api.emitReady();
+      await settle(container);
+      expect(api.pushedStates.length, afterClose);
     });
 
     test('TC-10 ✕ 回传 → 偏好置关并关闭窗口', () async {
@@ -266,11 +302,7 @@ void main() {
       final store = InMemoryPreferencesStore(
         const AppPreferences(desktopLyricsEnabled: true),
       );
-      final container = makeContainer(
-        engine: engine,
-        store: store,
-        api: api,
-      );
+      final container = makeContainer(engine: engine, store: store, api: api);
       addTearDown(container.dispose);
 
       container.read(desktopLyricsControllerProvider);
@@ -291,11 +323,7 @@ void main() {
       final store = InMemoryPreferencesStore(
         const AppPreferences(desktopLyricsEnabled: true),
       );
-      final container = makeContainer(
-        engine: engine,
-        store: store,
-        api: api,
-      );
+      final container = makeContainer(engine: engine, store: store, api: api);
       addTearDown(container.dispose);
 
       container.read(desktopLyricsControllerProvider);
@@ -359,11 +387,7 @@ void main() {
       final store = InMemoryPreferencesStore(
         const AppPreferences(desktopLyricsEnabled: true),
       );
-      final container = makeContainer(
-        engine: engine,
-        store: store,
-        api: api,
-      );
+      final container = makeContainer(engine: engine, store: store, api: api);
       addTearDown(container.dispose);
 
       container.read(desktopLyricsControllerProvider);

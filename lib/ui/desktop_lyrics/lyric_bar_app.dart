@@ -201,20 +201,47 @@ class _LyricBarWindowPageState extends State<_LyricBarWindowPage> {
   );
 
   @override
+  void didUpdateWidget(covariant _LyricBarWindowPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // 复用路径（重开/字号切换/主题语言变更）：窗口隐藏期间的推送被
+    // 抑制，最新展示态随配置下发，避免展示关闭前的陈旧行。
+    if (widget.config != oldWidget.config &&
+        _state != widget.config.initialState) {
+      _state = widget.config.initialState;
+    }
+  }
+
+  @override
   void initState() {
     super.initState();
     _state = widget.config.initialState;
-    unawaited(
-      _pushChannel.setMethodCallHandler((call) async {
-        if (call.method == LyricBarWindowCommands.state) {
-          if (!mounted) return null;
-          setState(
-            () => _state = LyricBarMessenger.decodeState(call.arguments),
-          );
-        }
-        return null;
-      }),
-    );
+    unawaited(_bootstrap());
+  }
+
+  /// 引导：注册推送 handler → 回发 ready。
+  ///
+  /// 顺序保证：主窗口收到 ready 时状态推送必然可达（先注册后通知），
+  /// 主窗口随即 show（hiddenAtLaunch 创建的窗口首次显示的唯一入口）
+  /// 并首推当前状态，覆盖冷启动窗口期被丢弃的推送。
+  Future<void> _bootstrap() async {
+    await _pushChannel.setMethodCallHandler((call) async {
+      if (call.method == LyricBarWindowCommands.state) {
+        if (!mounted) return null;
+        setState(
+          () => _state = LyricBarMessenger.decodeState(call.arguments),
+        );
+      }
+      return null;
+    });
+    if (!mounted) return;
+    try {
+      await _backChannel
+          .invokeMethod(LyricBarMessenger.readyMethod)
+          .timeout(const Duration(seconds: 2));
+    } on Exception catch (_) {
+      // 主窗口通道不可达（启动期间开关已被关 / 主窗口退出）——
+      // 保持 hiddenAtLaunch 的隐藏态即可，不自行 show。
+    }
   }
 
   @override

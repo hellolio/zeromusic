@@ -92,6 +92,13 @@ class LyricBarClosedEvent extends LyricBarHostEvent {
   const LyricBarClosedEvent();
 }
 
+/// 歌词条子窗口引擎就绪（push handler 已注册）：
+/// 主窗口收到后才下发 show（修「hiddenAtLaunch 创建后无人 show」的首次不显示），
+/// 并立即推送当前状态（修冷启动窗口期行推送被丢弃）。
+class LyricBarReadyEvent extends LyricBarHostEvent {
+  const LyricBarReadyEvent();
+}
+
 /// 拖动结束：主窗口应把新位置存入偏好（写回只发生在主窗口）。
 class LyricBarPositionSavedEvent extends LyricBarHostEvent {
   const LyricBarPositionSavedEvent(this.position);
@@ -116,6 +123,9 @@ abstract final class LyricBarMessenger {
   /// 编码 ✕ 事件（back 通道 method='closed'）。
   static const String closedMethod = 'closed';
 
+  /// 编码引擎就绪事件（back 通道 method='ready'，无参数）。
+  static const String readyMethod = 'ready';
+
   /// 编码位置回传（back 通道 method='position'）。
   static Map<String, Object?> encodePosition(Offset position) => {
     'x': position.dx,
@@ -127,6 +137,8 @@ abstract final class LyricBarMessenger {
     switch (method) {
       case closedMethod:
         return const LyricBarClosedEvent();
+      case readyMethod:
+        return const LyricBarReadyEvent();
       case positionMethod:
         if (arguments is Map<Object?, Object?> &&
             arguments['x'] is num &&

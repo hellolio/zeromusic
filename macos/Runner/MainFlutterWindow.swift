@@ -16,7 +16,9 @@ class MainFlutterWindow: NSWindow {
     //  详见《需求文档/08_桌面歌词.md》与开发方案。）
     FlutterMultiWindowPlugin.setOnWindowCreatedCallback { controller in
       RegisterGeneratedPlugins(registry: controller)
-      guard let window = controller.window else { return }
+      // FlutterViewController 是 NSViewController：窗口须经 view.window 获取
+      // （此刻 contentViewController 已挂载，view 必在窗口层级内）。
+      guard let window = controller.view.window else { return }
       Self.applyLyricBarWindowStyle(window)
 
       // orderFront：显示歌词条但不夺取焦点
@@ -39,7 +41,7 @@ class MainFlutterWindow: NSWindow {
     super.awakeFromNib()
   }
 
-  /// 歌词条窗口形态：透明、无边框、置顶、不抳焦点、不进 Dock、跨 Space。
+  /// 歌词条窗口形态：透明、无边框、置顶、不抢焦点、不进 Dock、跨 Space。
   private static func applyLyricBarWindowStyle(_ window: NSWindow) {
     // borderless 默认不可成为 key 窗口 → 点击歌词条不抳焦点。
     window.styleMask = [.borderless]

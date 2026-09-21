@@ -118,6 +118,17 @@ class LyricWindowDesktop implements LyricWindowApi {
   }
 
   Future<dynamic> _onLyricWindowCall(MethodCall call) async {
+    // 引擎就绪：子窗口 push handler 已注册。此刻才 show（hiddenAtLaunch
+    // 创建的窗口首次显示的唯一入口），避免未定位/未渲染闪现；并转发
+    // ready 事件让控制器立即补推当前态（冷启动窗口期推送曾被丢弃）。
+    if (call.method == LyricBarMessenger.readyMethod) {
+      if (!_open) return null; // 启动期间已被关：保持隐藏。
+      await _safe(
+        () => _controller?.invokeMethod(LyricBarWindowCommands.show),
+      );
+      _events.add(const LyricBarReadyEvent());
+      return null;
+    }
     final event = LyricBarMessenger.decodeHostEvent(
       call.method,
       call.arguments,

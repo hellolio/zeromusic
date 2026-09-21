@@ -202,8 +202,9 @@ class _LyricSlot extends StatelessWidget {
   }
 }
 
-/// ✕ 关闭按钮：平时半透明，悬停浮现 + 微放大（≤200ms，构架 §5）。
-class _CloseButton extends StatelessWidget {
+/// ✕ 关闭按钮：平时低透明度常显，悬停透明度提升 + 轻微放大
+/// （≤200ms，需求 §3.3 / 构架 §5；减弱动效直接替换）。
+class _CloseButton extends StatefulWidget {
   const _CloseButton({
     required this.motionReduced,
     required this.tooltip,
@@ -215,22 +216,41 @@ class _CloseButton extends StatelessWidget {
   final VoidCallback? onClose;
 
   @override
+  State<_CloseButton> createState() => _CloseButtonState();
+}
+
+class _CloseButtonState extends State<_CloseButton> {
+  bool _hovering = false;
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final duration = widget.motionReduced ? Duration.zero : AppCurves.quickMotion;
     return Tooltip(
-      message: tooltip,
-      child: AnimatedScale(
-        duration: motionReduced ? Duration.zero : AppCurves.quickMotion,
-        scale: 1.0,
-        child: CupertinoButton(
-          key: const ValueKey('desktop_lyrics_close'),
-          padding: const EdgeInsets.all(AppTokens.spaceXs),
-          onPressed: onClose,
-          minimumSize: Size(28, 28),
-          child: Icon(
-            CupertinoIcons.xmark,
-            size: 14,
-            color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+      message: widget.tooltip,
+      child: MouseRegion(
+        onEnter: (_) => setState(() => _hovering = true),
+        onExit: (_) => setState(() => _hovering = false),
+        child: AnimatedScale(
+          duration: duration,
+          curve: AppCurves.quick,
+          scale: _hovering ? 1.15 : 1.0,
+          child: AnimatedOpacity(
+            duration: duration,
+            curve: AppCurves.quick,
+            // 平时低透明度常显（可见性与可测性），悬停变亮。
+            opacity: _hovering ? 1.0 : 0.55,
+            child: CupertinoButton(
+              key: const ValueKey('desktop_lyrics_close'),
+              padding: const EdgeInsets.all(AppTokens.spaceXs),
+              onPressed: widget.onClose,
+              minimumSize: Size(28, 28),
+              child: Icon(
+                CupertinoIcons.xmark,
+                size: 14,
+                color: theme.colorScheme.onSurface,
+              ),
+            ),
           ),
         ),
       ),

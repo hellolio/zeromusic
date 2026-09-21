@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -22,9 +23,8 @@ void main() {
         localizationsDelegates: appLocalizationsDelegates,
         supportedLocales: const [Locale('en')],
         home: MediaQuery(
-          data: MediaQueryData.fromView(
-            tester.view,
-          ).copyWith(disableAnimations: disableAnimations),
+          data: MediaQueryData.fromView(tester.view)
+              .copyWith(disableAnimations: disableAnimations),
           child: Scaffold(
             body: Center(
               child: DesktopLyricsBar(
@@ -91,10 +91,7 @@ void main() {
   });
 
   testWidgets('TC-16 无曲目 → 未在播放', (tester) async {
-    await pumpBar(
-      tester,
-      state: const LyricBarStateMessage(hasTrack: false),
-    );
+    await pumpBar(tester, state: const LyricBarStateMessage(hasTrack: false));
 
     expect(find.text('Not Playing'), findsOneWidget);
   });
@@ -132,6 +129,38 @@ void main() {
     await tester.pump();
 
     expect(closed, isTrue);
+  });
+
+  testWidgets('TC-31 ✕ 悬停：透明度提升 + 轻微放大', (tester) async {
+    await pumpBar(
+      tester,
+      state: const LyricBarStateMessage(
+        hasTrack: true,
+        title: 'Song A',
+        artist: 'Artist X',
+        currentText: 'First line',
+      ),
+    );
+
+    // 悬停前：低透明度常显 + 原始大小。
+    AnimatedScale animatedScaleOf() =>
+        tester.widget<AnimatedScale>(find.byType(AnimatedScale));
+    AnimatedOpacity animatedOpacityOf() =>
+        tester.widget<AnimatedOpacity>(find.byType(AnimatedOpacity));
+    expect(animatedScaleOf().scale, 1.0);
+    expect(animatedOpacityOf().opacity, 0.55);
+
+    // 鼠标移入 ✕ → 悬停态（ AnimatedScale / AnimatedOpacity 在条内唯一）。
+    final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await gesture.addPointer(location: Offset.zero);
+    addTearDown(gesture.removePointer);
+    await gesture.moveTo(
+      tester.getCenter(find.byKey(const ValueKey('desktop_lyrics_close'))),
+    );
+    await tester.pumpAndSettle();
+
+    expect(animatedScaleOf().scale, 1.15);
+    expect(animatedOpacityOf().opacity, 1.0);
   });
 
   testWidgets('TC-21 按下歌词区触发拖动回调', (tester) async {

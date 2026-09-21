@@ -268,7 +268,7 @@ class _SectionLabel extends StatelessWidget {
 /// 桌面歌词开关行：开关即时开合歌词条窗口并持久化。
 ///
 /// 编排（创建/隐藏窗口、状态推送）由 [DesktopLyricsController] 完成，
-/// 这里只写偏好。开启且当前平台点击会抳焦点时，附降级提示文案。
+/// 这里只写偏好。开启且当前平台点击会抢焦点时，附降级提示文案。
 class _DesktopLyricsTile extends ConsumerWidget {
   const _DesktopLyricsTile();
 
