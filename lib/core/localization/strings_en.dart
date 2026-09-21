@@ -107,7 +107,8 @@ class AppStringsEn extends AppStrings {
   String get deleteConfirmTitle => 'Delete Song';
 
   @override
-  String get deleteConfirmMessage => 'The song will be removed from your library. This cannot be undone.';
+  String get deleteConfirmMessage =>
+      'The song will be removed from your library. This cannot be undone.';
 
   @override
   String get noResult => 'No matching songs';
@@ -266,8 +267,7 @@ class AppStringsEn extends AppStrings {
   String get eqUnsupported => 'Not supported';
 
   @override
-  String get eqUnsupportedHint =>
-      'Equalizer is not supported on this platform';
+  String get eqUnsupportedHint => 'Equalizer is not supported on this platform';
 
   @override
   String get eqPlayToEnable => 'Start playback to adjust bands';
@@ -316,4 +316,38 @@ class AppStringsEn extends AppStrings {
 
   @override
   String get videoPlayer => 'Video Player';
+
+  @override
+  String get settingsDesktop => 'Desktop';
+
+  @override
+  String get desktopLyrics => 'Desktop Lyrics';
+
+  @override
+  String get desktopLyricsClose => 'Close Desktop Lyrics';
+
+  @override
+  String get desktopLyricsFontSize => 'Font Size';
+
+  @override
+  String get desktopLyricsFontSmall => 'Small';
+
+  @override
+  String get desktopLyricsFontMedium => 'Medium';
+
+  @override
+  String get desktopLyricsFontLarge => 'Large';
+
+  @override
+  String get desktopLyricsResetPosition => 'Reset Position';
+
+  @override
+  String get desktopLyricsNotPlaying => 'Not Playing';
+
+  @override
+  String get desktopLyricsInterlude => '♪ Interlude ♪';
+
+  @override
+  String get desktopLyricsFocusHint =>
+      'Clicking the lyrics bar may bring this app to the front on this platform';
 }

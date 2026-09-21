@@ -22,8 +22,7 @@ String themeLabel(AppStrings strings, ThemeMode mode) {
 }
 
 /// 背景效果档位的三语标签（页面行值与选择弹层共用）。
-String backgroundEffectLabel(
-    AppStrings strings, BackgroundEffectLevel level) {
+String backgroundEffectLabel(AppStrings strings, BackgroundEffectLevel level) {
   switch (level) {
     case BackgroundEffectLevel.powerSaver:
       return strings.bgEffectPowerSaver;
@@ -34,13 +33,54 @@ String backgroundEffectLabel(
   }
 }
 
-/// 背景效果档位三态选择：居中弹窗（桌面/移动一致）。
-Future<void> showBackgroundPicker(
+/// 桌面歌词字号档位的三语标签（页面行值与选择弹层共用）。
+String desktopFontSizeLabel(AppStrings strings, DesktopLyricsFontSize size) {
+  switch (size) {
+    case DesktopLyricsFontSize.small:
+      return strings.desktopLyricsFontSmall;
+    case DesktopLyricsFontSize.medium:
+      return strings.desktopLyricsFontMedium;
+    case DesktopLyricsFontSize.large:
+      return strings.desktopLyricsFontLarge;
+  }
+}
+
+/// 桌面歌词字号三档选择：居中弹窗（桌面/移动一致）。
+Future<void> showDesktopFontSizePicker(
   BuildContext context,
   WidgetRef ref,
 ) async {
   final strings = context.strings;
-  final current = ref.read(preferencesProvider).value?.backgroundEffect ??
+  final current =
+      ref.read(preferencesProvider).value?.desktopLyricsFontSize ??
+      DesktopLyricsFontSize.medium;
+
+  await showCenterPopup<void>(
+    context,
+    child: _ChoiceSheet(
+      title: strings.desktopLyricsFontSize,
+      options: [
+        for (final size in DesktopLyricsFontSize.values)
+          _ChoiceOption(
+            label: desktopFontSizeLabel(strings, size),
+            checked: size == current,
+            onTap: () async {
+              await ref
+                  .read(preferencesProvider.notifier)
+                  .setDesktopLyricsFontSize(size);
+              if (context.mounted) Navigator.of(context).pop();
+            },
+          ),
+      ],
+    ),
+  );
+}
+
+/// 背景效果档位三态选择：居中弹窗（桌面/移动一致）。
+Future<void> showBackgroundPicker(BuildContext context, WidgetRef ref) async {
+  final strings = context.strings;
+  final current =
+      ref.read(preferencesProvider).value?.backgroundEffect ??
       BackgroundEffectLevel.balanced;
 
   Future<void> onPick(BackgroundEffectLevel level) async {
@@ -67,10 +107,7 @@ Future<void> showBackgroundPicker(
 }
 
 /// 主题三态选择：居中弹窗（桌面/移动一致）。
-Future<void> showThemePicker(
-  BuildContext context,
-  WidgetRef ref,
-) async {
+Future<void> showThemePicker(BuildContext context, WidgetRef ref) async {
   final strings = context.strings;
   final current =
       ref.read(preferencesProvider).value?.themeMode ?? ThemeMode.system;
@@ -99,10 +136,7 @@ Future<void> showThemePicker(
 }
 
 /// 语言三态选择：居中弹窗（桌面/移动一致）。
-Future<void> showLanguagePicker(
-  BuildContext context,
-  WidgetRef ref,
-) async {
+Future<void> showLanguagePicker(BuildContext context, WidgetRef ref) async {
   final strings = context.strings;
   final current = AppLanguage.fromLocale(Localizations.localeOf(context));
 
@@ -165,9 +199,12 @@ class _ChoiceSheet extends StatelessWidget {
               AppTokens.spaceM,
               AppTokens.spaceS,
             ),
-            child: Text(title,
-                style: theme.textTheme.titleMedium
-                    ?.copyWith(fontWeight: FontWeight.w700)),
+            child: Text(
+              title,
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
+            ),
           ),
           for (final option in options)
             ListTile(
@@ -187,8 +224,9 @@ class _ChoiceSheet extends StatelessWidget {
                   color: option.checked
                       ? theme.colorScheme.primary
                       : theme.colorScheme.onSurface,
-                  fontWeight:
-                      option.checked ? FontWeight.w600 : FontWeight.w400,
+                  fontWeight: option.checked
+                      ? FontWeight.w600
+                      : FontWeight.w400,
                 ),
               ),
               onTap: option.onTap,

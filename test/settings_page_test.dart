@@ -1,10 +1,12 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:zeromusic/services/audio/equalizer_controller.dart';
+import 'package:zeromusic/services/desktop_lyrics/lyric_window_api.dart';
 import 'package:zeromusic/services/preferences/preferences_controller.dart';
 import 'package:zeromusic/ui/components/center_popup.dart';
 import 'package:zeromusic/ui/pages/settings/equalizer_sheet.dart';
@@ -14,6 +16,7 @@ import 'helpers.dart';
 import 'support/fake_audio_engine.dart';
 import 'support/fake_data_layer.dart';
 import 'support/fake_equalizer.dart';
+import 'support/fake_lyric_window_api.dart';
 import 'support/in_memory_preferences_store.dart';
 
 void main() {
@@ -70,6 +73,7 @@ void main() {
     InMemoryPreferencesStore? store,
     FakeAudioEngine? engine,
     Size size = const Size(800, 1200),
+    List<Override> extraOverrides = const [],
   }) async {
     tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1.0;
@@ -77,7 +81,10 @@ void main() {
 
     await tester.pumpWidget(
       wrapApp(
-        overrides: fakeDataLayerOverrides(FakeDataLayer()),
+        overrides: [
+          ...fakeDataLayerOverrides(FakeDataLayer()),
+          ...extraOverrides,
+        ],
         preferencesStore: store,
         audioEngine: engine,
       ),
@@ -419,6 +426,99 @@ void main() {
       expect(eq.enabled, isTrue);
       expect([for (final b in eq.bands) b.gain], [1.0, 2.0, 3.0, 4.0, 5.0]);
       expect(find.text('On'), findsOneWidget);
+    });
+  });
+
+  group('桌面歌词（仅桌面端）', () {
+    testWidgets('TC-24 移动断点不显示桌面分组', (tester) async {
+      await pumpSettings(tester); // 800 宽 < 桌面断点 840
+
+      expect(
+        find.byKey(const ValueKey('settings-desktop-lyrics')),
+        findsNothing,
+      );
+      expect(
+        find.byKey(const ValueKey('settings-desktop-lyrics-font')),
+        findsNothing,
+      );
+      expect(
+        find.byKey(const ValueKey('settings-desktop-lyrics-reset')),
+        findsNothing,
+      );
+    });
+
+    testWidgets('TC-25/26 桌面断点显示分组；开关切换生效并持久化', (tester) async {
+      final api = FakeLyricWindowApi()..stealsFocus = true;
+      final store = InMemoryPreferencesStore();
+      await pumpSettings(
+        tester,
+        store: store,
+        size: const Size(1200, 900),
+        extraOverrides: [lyricWindowApiProvider.overrideWithValue(api)],
+      );
+
+      expect(
+        find.byKey(const ValueKey('settings-desktop-lyrics')),
+        findsOneWidget,
+      );
+
+      // 开 → 窗口打开 + 持久化 + 抢焦点平台提示出现。
+      await tester.tap(find.byType(Switch));
+      await tester.pumpAndSettle();
+      expect(prefsAt(tester).desktopLyricsEnabled, isTrue);
+      expect(store.lastSaved.desktopLyricsEnabled, isTrue);
+      expect(api.openState, isTrue);
+      expect(
+        find.text(
+          'Clicking the lyrics bar may bring this app to the front '
+          'on this platform',
+        ),
+        findsOneWidget,
+      );
+
+      // 关 → 窗口关闭，提示消失。
+      await tester.tap(find.byType(Switch));
+      await tester.pumpAndSettle();
+      expect(prefsAt(tester).desktopLyricsEnabled, isFalse);
+      expect(api.openState, isFalse);
+      expect(
+        find.text(
+          'Clicking the lyrics bar may bring this app to the front '
+          'on this platform',
+        ),
+        findsNothing,
+      );
+    });
+
+    testWidgets('TC-27 字号档位选择持久化', (tester) async {
+      await pumpSettings(tester, size: const Size(1200, 900));
+
+      await tester.tap(
+        find.byKey(const ValueKey('settings-desktop-lyrics-font')),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Large'));
+      await tester.pumpAndSettle();
+
+      expect(
+        prefsAt(tester).desktopLyricsFontSize,
+        DesktopLyricsFontSize.large,
+      );
+    });
+
+    testWidgets('TC-28 恢复默认位置清空自定义偏移', (tester) async {
+      final store = InMemoryPreferencesStore(
+        const AppPreferences(desktopLyricsOffset: Offset(12, 34)),
+      );
+      await pumpSettings(tester, store: store, size: const Size(1200, 900));
+
+      await tester.tap(
+        find.byKey(const ValueKey('settings-desktop-lyrics-reset')),
+      );
+      await tester.pumpAndSettle();
+
+      expect(prefsAt(tester).desktopLyricsOffset, isNull);
+      expect(store.lastSaved.desktopLyricsOffset, isNull);
     });
   });
 }

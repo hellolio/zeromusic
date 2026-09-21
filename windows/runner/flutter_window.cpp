@@ -3,6 +3,7 @@
 #include <optional>
 
 #include "flutter/generated_plugin_registrant.h"
+#include <desktop_multi_window/desktop_multi_window_plugin.h>
 
 FlutterWindow::FlutterWindow(const flutter::DartProject& project)
     : project_(project) {}
@@ -25,6 +26,13 @@ bool FlutterWindow::OnCreate() {
     return false;
   }
   RegisterPlugins(flutter_controller_->engine());
+  // 桌面歌词：子窗口创建时注册插件（desktop_multi_window 官方示例模式）。
+  DesktopMultiWindowSetWindowCreatedCallback([](void *controller) {
+    auto *flutter_view_controller =
+        reinterpret_cast<flutter::FlutterViewController *>(controller);
+    auto *registry = flutter_view_controller->engine();
+    RegisterPlugins(registry);
+  });
   SetChildContent(flutter_controller_->view()->GetNativeWindow());
 
   flutter_controller_->engine()->SetNextFrameCallback([&]() {

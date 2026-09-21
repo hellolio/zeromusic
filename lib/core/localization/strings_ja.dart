@@ -315,4 +315,37 @@ class AppStringsJa extends AppStrings {
 
   @override
   String get videoPlayer => 'ビデオプレイヤー';
+
+  @override
+  String get settingsDesktop => 'デスクトップ';
+
+  @override
+  String get desktopLyrics => 'デスクトップ歌詞';
+
+  @override
+  String get desktopLyricsClose => 'デスクトップ歌詞を閉じる';
+
+  @override
+  String get desktopLyricsFontSize => '文字サイズ';
+
+  @override
+  String get desktopLyricsFontSmall => '小';
+
+  @override
+  String get desktopLyricsFontMedium => '中';
+
+  @override
+  String get desktopLyricsFontLarge => '大';
+
+  @override
+  String get desktopLyricsResetPosition => '位置をリセット';
+
+  @override
+  String get desktopLyricsNotPlaying => '再生していません';
+
+  @override
+  String get desktopLyricsInterlude => '♪ 間奏 ♪';
+
+  @override
+  String get desktopLyricsFocusHint => 'このプラットフォームでは歌詞バーをクリックするとアプリが前面に出ます';
 }

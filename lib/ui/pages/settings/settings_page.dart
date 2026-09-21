@@ -8,6 +8,7 @@ import '../../../core/localization/localizations_delegate.dart';
 import '../../../core/platform/device_type.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../services/audio/equalizer_controller.dart';
+import '../../../services/desktop_lyrics/lyric_window_api.dart';
 import '../../../services/preferences/preferences_controller.dart';
 import '../../scaffold/content_bottom_inset.dart';
 import 'equalizer_sheet.dart';
@@ -80,6 +81,26 @@ class SettingsPage extends ConsumerWidget {
           value: backgroundEffectLabel(strings, prefs.backgroundEffect),
           onTap: () => showBackgroundPicker(context, ref),
         ),
+        // ---- 桌面（仅桌面端显示，需求 §4）----
+        if (desktop) ...[
+          _SectionLabel(strings.settingsDesktop),
+          const _DesktopLyricsTile(),
+          _SettingsTile(
+            key: const ValueKey('settings-desktop-lyrics-font'),
+            icon: CupertinoIcons.textformat,
+            label: strings.desktopLyricsFontSize,
+            value: desktopFontSizeLabel(strings, prefs.desktopLyricsFontSize),
+            onTap: () => showDesktopFontSizePicker(context, ref),
+          ),
+          _SettingsTile(
+            key: const ValueKey('settings-desktop-lyrics-reset'),
+            icon: CupertinoIcons.arrow_counterclockwise,
+            label: strings.desktopLyricsResetPosition,
+            onTap: () => ref
+                .read(preferencesProvider.notifier)
+                .clearDesktopLyricsOffset(),
+          ),
+        ],
         _SectionLabel(strings.settingsAbout),
         _SettingsTile(
           key: const ValueKey('settings-version'),
@@ -240,6 +261,62 @@ class _SectionLabel extends StatelessWidget {
         style: Theme.of(context).textTheme.labelLarge
             ?.copyWith(color: Theme.of(context).colorScheme.onSecondary),
       ),
+    );
+  }
+}
+
+/// 桌面歌词开关行：开关即时开合歌词条窗口并持久化。
+///
+/// 编排（创建/隐藏窗口、状态推送）由 [DesktopLyricsController] 完成，
+/// 这里只写偏好。开启且当前平台点击会抳焦点时，附降级提示文案。
+class _DesktopLyricsTile extends ConsumerWidget {
+  const _DesktopLyricsTile();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final strings = context.strings;
+    final theme = Theme.of(context);
+    final enabled = ref.watch(
+      preferencesProvider.select((p) => p.value?.desktopLyricsEnabled ?? false),
+    );
+    final stealsFocus = ref.watch(lyricWindowApiProvider).stealsFocusOnClick;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        ListTile(
+          key: const ValueKey('settings-desktop-lyrics'),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: AppTokens.spaceM,
+          ),
+          leading: Icon(
+            CupertinoIcons.text_quote,
+            size: 20,
+            color: theme.colorScheme.onSecondary,
+          ),
+          title: Text(strings.desktopLyrics, style: theme.textTheme.bodyLarge),
+          trailing: Switch(
+            value: enabled,
+            onChanged: (v) => ref
+                .read(preferencesProvider.notifier)
+                .setDesktopLyricsEnabled(v),
+          ),
+        ),
+        if (enabled && stealsFocus)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppTokens.spaceL,
+              0,
+              AppTokens.spaceM,
+              AppTokens.spaceS,
+            ),
+            child: Text(
+              strings.desktopLyricsFocusHint,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSecondary,
+              ),
+            ),
+          ),
+      ],
     );
   }
 }

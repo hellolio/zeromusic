@@ -1,13 +1,26 @@
+import 'dart:io' show Platform;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'core/localization/localizations_delegate.dart';
 import 'core/theme/app_theme.dart';
+import 'services/desktop_lyrics/desktop_lyrics_controller.dart';
+import 'services/desktop_lyrics/lyric_bar_messenger.dart';
 import 'services/preferences/preferences_controller.dart';
+import 'ui/desktop_lyrics/lyric_bar_app.dart';
 import 'ui/scaffold/adaptive_scaffold.dart';
 
-Future<void> main() async {
+Future<void> main(List<String> args) async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // 桌面歌词子窗口入口（desktop_multi_window：args = ['multi_window', id, json]）。
+  if (args.firstOrNull == kMultiWindowEntryArg &&
+      (Platform.isMacOS || Platform.isWindows || Platform.isLinux)) {
+    await runLyricBarWindow();
+    return;
+  }
+
   runApp(const ProviderScope(child: MyApp()));
 }
 
@@ -17,6 +30,8 @@ class MyApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // 桌面歌词编排器保活：行推送 / 窗口开关同步依赖它常驻。
+    ref.watch(desktopLyricsControllerProvider);
     // 偏好异步载入，首帧用默认值（跟随系统 / 中文），载入后即时生效。
     final prefs =
         ref.watch(preferencesProvider).value ?? const AppPreferences();

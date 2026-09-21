@@ -315,4 +315,37 @@ class AppStringsZh extends AppStrings {
 
   @override
   String get videoPlayer => '视频播放';
+
+  @override
+  String get settingsDesktop => '桌面';
+
+  @override
+  String get desktopLyrics => '桌面歌词';
+
+  @override
+  String get desktopLyricsClose => '关闭桌面歌词';
+
+  @override
+  String get desktopLyricsFontSize => '字号';
+
+  @override
+  String get desktopLyricsFontSmall => '小';
+
+  @override
+  String get desktopLyricsFontMedium => '中';
+
+  @override
+  String get desktopLyricsFontLarge => '大';
+
+  @override
+  String get desktopLyricsResetPosition => '恢复默认位置';
+
+  @override
+  String get desktopLyricsNotPlaying => '未在播放';
+
+  @override
+  String get desktopLyricsInterlude => '♪ 间奏 ♪';
+
+  @override
+  String get desktopLyricsFocusHint => '当前平台点击歌词条会使应用获得焦点';
 }

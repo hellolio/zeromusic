@@ -123,6 +123,19 @@ abstract class AppStrings {
 
   // ---- 视频 ----
   String get videoPlayer;
+
+  // ---- 桌面歌词（桌面端专属） ----
+  String get settingsDesktop;
+  String get desktopLyrics;
+  String get desktopLyricsClose;
+  String get desktopLyricsFontSize;
+  String get desktopLyricsFontSmall;
+  String get desktopLyricsFontMedium;
+  String get desktopLyricsFontLarge;
+  String get desktopLyricsResetPosition;
+  String get desktopLyricsNotPlaying;
+  String get desktopLyricsInterlude;
+  String get desktopLyricsFocusHint;
 }
 
 /// 通过 BuildContext 访问当前语言字符串。
