@@ -265,11 +265,12 @@ class _NextButton extends StatelessWidget {
 // ---------------------------------------------------------------------------
 
 /// 内容横向位移动画阶段。
-enum _Phase { idle, out, slideIn, spring }
+enum _Phase { idle, out, spring }
 
 /// 移动端胶囊：玻璃胶囊本体固定不动，仅**歌名·歌手**文本左右滑动切换上一首/下一首；
-/// 封面、播放/暂停、下一曲按钮固定不动。拖动跟手 → 未过阈值回弹（spring）→
-/// 过阈值文本滑出后换曲、再从对侧滑入（回弹）。
+/// 封面、播放/暂停、下一曲按钮固定不动。拖动跟手（轮播式：当前文本滑出的同时，
+/// 邻曲文本从滑动方向对侧以**同速 1:1** 滑入）→ 未过阈值回弹（spring）→
+/// 过阈值后当前文本滑出、邻曲文本归位，随即切歌复位。
 ///
 /// 动画为「controller + 状态监听」驱动（无 `await forward()`），阶段完成后必然
 /// 复位 `_offset/_dir/_animating`，新手势可随时打断接管，不会残留卡死。
@@ -305,11 +306,8 @@ class _SwipeableCapsuleState extends State<_SwipeableCapsule>
   /// 触发换歌的拖动阈值。
   static const double _slop = 56;
 
-  /// 跟手最大位移（文本滑动，略大于阈值即可自然触发）。
-  static const double _maxPull = 96;
-
-  /// 换歌滑出距离。
-  static const double _exitDistance = 220;
+  /// 文本区宽度未测得时的回退滑出距离（首帧布局前不会发生手势）。
+  static const double _fallbackSlideWidth = 240;
 
   static const double _coverSize = 38;
 
@@ -322,6 +320,12 @@ class _SwipeableCapsuleState extends State<_SwipeableCapsule>
 
   /// 文本横向偏移（跟手 / 动画实时值）。
   double _offset = 0;
+
+  /// 文本区宽度（LayoutBuilder 实测）：拖动上限与滑出距离（邻曲文本
+  /// 摆在当前文本旁一格宽度处，两块同速 1:1 滑动）。
+  double _trackWidth = 0;
+
+  double get _slideWidth => _trackWidth > 0 ? _trackWidth : _fallbackSlideWidth;
 
   /// 手势方向：0 空闲；+1 朝下一首（左滑）；-1 朝上一首（右滑）。
   int _dir = 0;
@@ -375,7 +379,10 @@ class _SwipeableCapsuleState extends State<_SwipeableCapsule>
 
   void _onHorizontalDragUpdate(DragUpdateDetails details) {
     if (_animating) return;
-    final next = (_offset + details.delta.dx).clamp(-_maxPull, _maxPull);
+    final next = (_offset + details.delta.dx).clamp(
+      -_slideWidth,
+      _slideWidth,
+    );
     setState(() {
       _offset = next;
       _dir = next < 0 ? 1 : (next > 0 ? -1 : 0);
@@ -423,14 +430,15 @@ class _SwipeableCapsuleState extends State<_SwipeableCapsule>
   }
 
   static Duration _durationOf(_Phase p) => switch (p) {
-    _Phase.out => const Duration(milliseconds: 200),
-    _Phase.slideIn || _Phase.spring => AppCurves.miniPlayerMotion,
+    _Phase.out => const Duration(milliseconds: 260),
+    _Phase.spring => AppCurves.miniPlayerMotion,
     _Phase.idle => Duration.zero,
   };
 
   static Curve _curveOf(_Phase p) => switch (p) {
-    _Phase.out => Curves.easeInCubic,
-    _Phase.slideIn || _Phase.spring => Curves.easeOutBack,
+    // easeOutCubic：无过冲（过冲会让邻曲文本冲过中点再晃回来）。
+    _Phase.out => Curves.easeOutCubic,
+    _Phase.spring => Curves.easeOutBack,
     _Phase.idle => Curves.linear,
   };
 
@@ -475,7 +483,8 @@ class _SwipeableCapsuleState extends State<_SwipeableCapsule>
     );
   }
 
-  /// 换歌：先文本滑出，再换曲、从对侧滑入（回弹）。
+  /// 换歌：当前文本滑向对侧一格宽度（邻曲文本同步归位），完成后切歌复位。
+  /// 滑出与滑入同一相位：两块文本同速 1:1，无先后、无重影。
   void _doSwap({required bool toNext}) {
     final action = toNext ? widget.onNext : widget.onPrev;
     if (action == null) {
@@ -483,7 +492,6 @@ class _SwipeableCapsuleState extends State<_SwipeableCapsule>
       return;
     }
     final dir = toNext ? 1 : -1;
-    final outTo = toNext ? -_exitDistance : _exitDistance;
 
     if (MediaQuery.disableAnimationsOf(context)) {
       action();
@@ -499,22 +507,15 @@ class _SwipeableCapsuleState extends State<_SwipeableCapsule>
     _runPhase(
       _Phase.out,
       _offset,
-      outTo,
+      -dir * _slideWidth,
       onDone: () {
+        // 邻曲文本已归位（视觉即新曲在中央）：切歌并复位。
         action();
-        // 入：新曲从对侧滑入，带回弹曲线。
-        _runPhase(
-          _Phase.slideIn,
-          -outTo,
-          0,
-          onDone: () {
-            setState(() {
-              _offset = 0;
-              _dir = 0;
-              _animating = false;
-            });
-          },
-        );
+        setState(() {
+          _offset = 0;
+          _dir = 0;
+          _animating = false;
+        });
       },
     );
   }
@@ -556,7 +557,7 @@ class _SwipeableCapsuleState extends State<_SwipeableCapsule>
   }
 
   /// 胶囊内的内容：封面、播放/暂停、下一曲固定；中间歌名·歌手文本横向滑动，
-  /// 拖动/换歌时从后方露出邻曲文本 peek。
+  /// 拖动/换歌时邻曲文本从滑动方向对侧同速 1:1 滑入（轮播式）。
   Widget _miniContent(_CapsuleData data) {
     return Padding(
       // 高度收紧后内容自然高（两行文本 48）已贴近条高，纵向不再额外留白；
@@ -576,17 +577,23 @@ class _SwipeableCapsuleState extends State<_SwipeableCapsule>
               ),
               const SizedBox(width: AppTokens.spaceM),
               Expanded(
-                child: ClipRect(
-                  child: Stack(
-                    alignment: Alignment.centerLeft,
-                    children: [
-                      if (_dir != 0) _buildBehindText(data),
-                      Transform.translate(
-                        offset: Offset(_offset, 0),
-                        child: _textBlock(data),
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    // 实测文本区宽度：邻曲文本间距与拖动上限都以此为一步。
+                    _trackWidth = constraints.maxWidth;
+                    return ClipRect(
+                      child: Stack(
+                        alignment: Alignment.centerLeft,
+                        children: [
+                          if (_dir != 0) _buildAdjacentText(data),
+                          Transform.translate(
+                            offset: Offset(_offset, 0),
+                            child: _textBlock(data),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
+                    );
+                  },
                 ),
               ),
               _PlayPauseButton(
@@ -602,14 +609,15 @@ class _SwipeableCapsuleState extends State<_SwipeableCapsule>
     );
   }
 
-  /// 后层邻曲文本 peek（拖动/动画中显示）。
-  Widget _buildBehindText(_CapsuleData data) {
-    final behind = data.adjacent(_dir);
-    if (behind == null) return const SizedBox.shrink();
+  /// 邻曲文本（轮播式 1:1 跟手）：摆在当前文本旁一格文本区宽度处，
+  /// 与当前文本同速滑动——右滑上一曲从左侧滑入，左滑下一曲从右侧滑入；
+  /// 不透明度与当前文本一致，无滞后、无重影。
+  Widget _buildAdjacentText(_CapsuleData data) {
+    final adjacent = data.adjacent(_dir);
+    if (adjacent == null) return const SizedBox.shrink();
     return Transform.translate(
-      // 滞后跟手，形成层叠 peek。
-      offset: Offset(_offset * 0.55, 0),
-      child: Opacity(opacity: 0.85, child: _textBlock(data.withTrack(behind))),
+      offset: Offset(_offset + _dir * _slideWidth, 0),
+      child: _textBlock(data.withTrack(adjacent)),
     );
   }
 
@@ -870,6 +878,20 @@ class _DesktopControl extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
+        // 桌面歌词开关（与播放页歌词按钮同图标 doc_text；开时主色高亮）。
+        IconButton(
+          key: const ValueKey('mini-player-desktop-lyrics'),
+          onPressed: onToggleDesktopLyrics,
+          constraints: const BoxConstraints.tightFor(width: 40, height: 40),
+          padding: const EdgeInsets.all(6),
+          icon: Icon(
+            CupertinoIcons.doc_text,
+            size: 20,
+            color: desktopLyricsEnabled ? theme.colorScheme.primary : null,
+          ),
+        ),
+        // 音量：点击在按钮上方弹出竖向滑杆小窗（与播放页同组件/同数据源）。
+        const _MiniVolumeButton(),
         IconButton(
           onPressed: onPrev,
           constraints: const BoxConstraints.tightFor(width: 40, height: 40),
@@ -899,20 +921,6 @@ class _DesktopControl extends StatelessWidget {
           padding: const EdgeInsets.all(6),
           icon: const Icon(CupertinoIcons.forward_end_fill, size: 20),
         ),
-        // 桌面歌词开关（与原设置页同图标；开时主色高亮）。
-        IconButton(
-          key: const ValueKey('mini-player-desktop-lyrics'),
-          onPressed: onToggleDesktopLyrics,
-          constraints: const BoxConstraints.tightFor(width: 40, height: 40),
-          padding: const EdgeInsets.all(6),
-          icon: Icon(
-            CupertinoIcons.text_quote,
-            size: 20,
-            color: desktopLyricsEnabled ? theme.colorScheme.primary : null,
-          ),
-        ),
-        // 音量：点击在按钮上方弹出竖向滑杆小窗（与播放页同组件/同数据源）。
-        const _MiniVolumeButton(),
       ],
     );
   }

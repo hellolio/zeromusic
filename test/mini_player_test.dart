@@ -419,7 +419,7 @@ void main() {
     final icon = tester.widget<Icon>(
       find.descendant(
         of: button,
-        matching: find.byIcon(CupertinoIcons.text_quote),
+        matching: find.byIcon(CupertinoIcons.doc_text),
       ),
     );
     expect(icon.color, Theme.of(context).colorScheme.primary);
@@ -436,7 +436,7 @@ void main() {
           .widget<Icon>(
             find.descendant(
               of: button,
-              matching: find.byIcon(CupertinoIcons.text_quote),
+              matching: find.byIcon(CupertinoIcons.doc_text),
             ),
           )
           .color,
@@ -494,5 +494,92 @@ void main() {
     await pumpWithQueue(tester, viewport: const Size(1400, 900));
 
     expect(find.byKey(const ValueKey('mini-player-progress')), findsNothing);
+  });
+
+  testWidgets('桌面端：控制按钮从左到右为歌词开关/音量/上一曲/播放/下一曲', (
+    tester,
+  ) async {
+    await pumpWithQueue(tester, viewport: const Size(1400, 900));
+
+    double dx(Finder f) => tester.getCenter(f).dx;
+    final lyricsX = dx(
+      find.byKey(const ValueKey('mini-player-desktop-lyrics')),
+    );
+    final volumeX = dx(find.byKey(const ValueKey('mini-player-volume')));
+    final prevX = dx(find.byIcon(CupertinoIcons.backward_end_fill));
+    // 播放/暂停图标随状态二选一，用谓词定位。
+    final playX = dx(
+      find.byWidgetPredicate(
+        (w) =>
+            w is Icon &&
+            (w.icon == CupertinoIcons.play_circle_fill ||
+                w.icon == CupertinoIcons.pause_circle_fill),
+      ),
+    );
+    final nextX = dx(find.byIcon(CupertinoIcons.forward_end_fill));
+
+    expect(lyricsX, lessThan(volumeX));
+    expect(volumeX, lessThan(prevX));
+    expect(prevX, lessThan(playX));
+    expect(playX, lessThan(nextX));
+  });
+
+  testWidgets('移动端：左滑时下一曲文本 1:1 跟手从右侧滑入', (tester) async {
+    await pumpWithQueue(tester);
+
+    final g = await tester.startGesture(
+      tester.getCenter(find.byType(MiniPlayer)),
+    );
+    await g.moveBy(const Offset(-30, 0));
+    await tester.pump();
+
+    // 邻曲文本已从右侧滑入，位于当前文本右侧。
+    final next1 = tester.getCenter(find.text('晨光')).dx;
+    final cur1 = tester.getCenter(find.text('夜曲')).dx;
+    expect(next1, greaterThan(cur1));
+
+    // 继续拖 20px：两块文本位移增量完全相同（1:1 同速）。
+    await g.moveBy(const Offset(-20, 0));
+    await tester.pump();
+    final next2 = tester.getCenter(find.text('晨光')).dx;
+    final cur2 = tester.getCenter(find.text('夜曲')).dx;
+    expect(next2 - next1, closeTo(-20, 0.5));
+    expect(cur2 - cur1, closeTo(-20, 0.5));
+    // 两文本中心距恒定 → 不存在滞后第二速度（重影回归断言）。
+    expect(next1 - cur1, closeTo(next2 - cur2, 0.5));
+
+    // 未过阈值松手：回弹后邻曲文本消失，曲目不切换。
+    await g.up();
+    await tester.pumpAndSettle();
+    expect(find.text('夜曲'), findsOneWidget);
+    expect(find.text('晨光'), findsNothing);
+  });
+
+  testWidgets('移动端：右滑时邻曲文本 1:1 跟手从左侧滑入', (tester) async {
+    await pumpWithQueue(tester);
+
+    final g = await tester.startGesture(
+      tester.getCenter(find.byType(MiniPlayer)),
+    );
+    await g.moveBy(const Offset(30, 0));
+    await tester.pump();
+
+    // 双曲队列环绕：右滑（上一曲）邻曲亦为「晨光」，从左侧滑入。
+    final adj1 = tester.getCenter(find.text('晨光')).dx;
+    final cur1 = tester.getCenter(find.text('夜曲')).dx;
+    expect(adj1, lessThan(cur1));
+
+    await g.moveBy(const Offset(20, 0));
+    await tester.pump();
+    final adj2 = tester.getCenter(find.text('晨光')).dx;
+    final cur2 = tester.getCenter(find.text('夜曲')).dx;
+    expect(adj2 - adj1, closeTo(20, 0.5));
+    expect(cur2 - cur1, closeTo(20, 0.5));
+    expect(adj1 - cur1, closeTo(adj2 - cur2, 0.5));
+
+    await g.up();
+    await tester.pumpAndSettle();
+    expect(find.text('夜曲'), findsOneWidget);
+    expect(find.text('晨光'), findsNothing);
   });
 }
