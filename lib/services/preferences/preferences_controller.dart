@@ -210,7 +210,18 @@ final preferencesStoreProvider = Provider<PreferencesStore>(
 /// 全局偏好控制器：启动时从 [preferencesStoreProvider] 载入，更改即持久化。
 class PreferencesController extends AsyncNotifier<AppPreferences> {
   @override
-  Future<AppPreferences> build() => ref.watch(preferencesStoreProvider).load();
+  Future<AppPreferences> build() async {
+    final prefs = await ref.watch(preferencesStoreProvider).load();
+    // 桌面歌词开关是会话级（需求变更）：不跨启动记忆，每次启动强制归零
+    // 并写回存储保持一致；只有用户本次会话手动打开开关才显示歌词条。
+    // 字号/位置不受影响，仍持久化。
+    if (!prefs.desktopLyricsEnabled) {
+      return prefs;
+    }
+    final reset = prefs.copyWith(desktopLyricsEnabled: false);
+    await ref.read(preferencesStoreProvider).save(reset);
+    return reset;
+  }
 
   Future<void> setThemeMode(ThemeMode mode) =>
       _mutate((p) => p.copyWith(themeMode: mode));

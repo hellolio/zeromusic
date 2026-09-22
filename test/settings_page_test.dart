@@ -521,7 +521,8 @@ void main() {
     });
 
     testWidgets('TC-27 字号档位选择持久化', (tester) async {
-      // 字号入口仅在开启后显示：用已开启的初始偏好。
+      // 字号入口仅在开启后显示：存储遗留的开关=开在启动时被强制归零
+      // （TC-07），先手动打开开关模拟用户操作。
       await pumpSettings(
         tester,
         store: InMemoryPreferencesStore(
@@ -529,6 +530,9 @@ void main() {
         ),
         size: const Size(1200, 900),
       );
+
+      await tester.tap(find.byType(CupertinoSwitch));
+      await tester.pumpAndSettle();
 
       await tester.tap(
         find.byKey(const ValueKey('settings-desktop-lyrics-font')),
@@ -551,6 +555,10 @@ void main() {
         ),
       );
       await pumpSettings(tester, store: store, size: const Size(1200, 900));
+
+      // 启动强制归零（TC-07）：先手动打开开关让恢复位置入口出现。
+      await tester.tap(find.byType(CupertinoSwitch));
+      await tester.pumpAndSettle();
 
       await tester.tap(
         find.byKey(const ValueKey('settings-desktop-lyrics-reset')),

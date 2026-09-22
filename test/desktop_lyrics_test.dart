@@ -188,9 +188,18 @@ void main() {
       return container;
     }
 
-    test('TC-07 开关=开：启动自动恢复并携带字号/位置/初始态', () async {
+    // TC-07 起启动强制归零（开关不跨启动记忆）：需要歌词条打开态的用例
+    // 先手动打开，模拟用户在会话内打开开关。
+    Future<void> enableLyricBar(ProviderContainer container) async {
+      await container
+          .read(preferencesProvider.notifier)
+          .setDesktopLyricsEnabled(true);
+    }
+
+    test('TC-07 启动强制归零：开关不跨启动记忆', () async {
       final api = FakeLyricWindowApi();
       final engine = FakeAudioEngine();
+      // 存储里开关为开（上次会话遗留）：启动不应自动恢复。
       final store = InMemoryPreferencesStore(
         const AppPreferences(
           desktopLyricsEnabled: true,
@@ -204,16 +213,39 @@ void main() {
       container.read(desktopLyricsControllerProvider);
       await settle(container);
 
+      // 窗口从未打开；closeCount=1 是控制器对齐 sync 的幂等 close 调用
+      // （fake 无条件计数），不代表真的关过窗口。
+      expect(api.openState, isFalse);
+      expect(api.openedConfigs, isEmpty);
+      expect(api.closeCount, 1);
+      // 偏好开关被重置为 false 并写回存储；字号/位置仍保留。
+      expect(store.lastSaved.desktopLyricsEnabled, isFalse);
+      expect(store.lastSaved.desktopLyricsFontSize, DesktopLyricsFontSize.large);
+      expect(store.lastSaved.desktopLyricsOffset, const Offset(30, 40));
+      expect(api.pushedStates, isEmpty);
+    });
+
+    test('TC-44 启动归零后，会话内手动打开仍正常', () async {
+      final api = FakeLyricWindowApi();
+      final engine = FakeAudioEngine();
+      final store = InMemoryPreferencesStore(
+        const AppPreferences(desktopLyricsEnabled: true),
+      );
+      final container = makeContainer(engine: engine, store: store, api: api);
+      addTearDown(container.dispose);
+
+      container.read(desktopLyricsControllerProvider);
+      await settle(container);
+      expect(api.openState, isFalse); // 启动已强制归零。
+
+      await container
+          .read(preferencesProvider.notifier)
+          .setDesktopLyricsEnabled(true);
+      await settle(container);
+
       expect(api.openState, isTrue);
       expect(api.openedConfigs, hasLength(1));
-      final config = api.openedConfigs.single;
-      expect(config.fontTier, DesktopLyricsFontSize.large);
-      expect(config.offset, const Offset(30, 40));
-      expect(config.initialState.hasTrack, isFalse); // 未播放
-      expect(api.closeCount, 0);
-      // 启动恢复即推当前状态（不依赖子引擎就绪后才有首帧数据）。
-      expect(api.pushedStates, isNotEmpty);
-      expect(api.pushedStates.first, config.initialState);
+      expect(store.lastSaved.desktopLyricsEnabled, isTrue);
     });
 
     test('TC-08 开关=关：不打开窗口', () async {
@@ -246,15 +278,20 @@ void main() {
 
       container.read(desktopLyricsControllerProvider);
       await settle(container);
+      expect(api.openState, isFalse); // 启动已强制归零（TC-07）
+
+      await enableLyricBar(container);
+      await settle(container);
       expect(api.openState, isTrue);
 
+      final closeBefore = api.closeCount;
       await container
           .read(preferencesProvider.notifier)
           .setDesktopLyricsEnabled(false);
       await settle(container);
 
       expect(api.openState, isFalse);
-      expect(api.closeCount, 1);
+      expect(api.closeCount, closeBefore + 1);
       expect(store.lastSaved.desktopLyricsEnabled, isFalse);
     });
 
@@ -295,6 +332,8 @@ void main() {
 
       container.read(desktopLyricsControllerProvider);
       await settle(container);
+      await enableLyricBar(container);
+      await settle(container);
       expect(api.openState, isTrue);
 
       // 引擎就绪 → 恰好补推一次（覆盖冷启动窗口期被丢弃的推送）。
@@ -328,6 +367,8 @@ void main() {
 
       container.read(desktopLyricsControllerProvider);
       await settle(container);
+      await enableLyricBar(container);
+      await settle(container);
       expect(api.openState, isTrue);
 
       api.emitClosed();
@@ -348,6 +389,8 @@ void main() {
       addTearDown(container.dispose);
 
       container.read(desktopLyricsControllerProvider);
+      await settle(container);
+      await enableLyricBar(container);
       await settle(container);
 
       api.emitPosition(const Offset(12, 34));
@@ -373,6 +416,8 @@ void main() {
       addTearDown(container.dispose);
 
       container.read(desktopLyricsControllerProvider);
+      await settle(container);
+      await enableLyricBar(container);
       await settle(container);
 
       // 播放曲目 1（id 数字 ↔ songId 1）。
@@ -413,6 +458,8 @@ void main() {
 
       container.read(desktopLyricsControllerProvider);
       await settle(container);
+      await enableLyricBar(container);
+      await settle(container);
 
       container
           .read(audioControllerProvider.notifier)
@@ -440,6 +487,8 @@ void main() {
 
       container.read(desktopLyricsControllerProvider);
       await settle(container);
+      await enableLyricBar(container);
+      await settle(container);
 
       // 音量来自偏好（与播放页同源）。
       expect(api.pushedStates.last.volume, 0.4);
@@ -462,6 +511,8 @@ void main() {
       addTearDown(container.dispose);
 
       container.read(desktopLyricsControllerProvider);
+      await settle(container);
+      await enableLyricBar(container);
       await settle(container);
       container.read(audioControllerProvider.notifier).play(track('1'));
       await settle(container);
@@ -489,6 +540,8 @@ void main() {
 
       container.read(desktopLyricsControllerProvider);
       await settle(container);
+      await enableLyricBar(container);
+      await settle(container);
       container.read(audioControllerProvider.notifier).play(track('1'));
       await settle(container);
       final loadedAfterPlay = engine.playedTracks.length;
@@ -512,6 +565,8 @@ void main() {
       addTearDown(container.dispose);
 
       container.read(desktopLyricsControllerProvider);
+      await settle(container);
+      await enableLyricBar(container);
       await settle(container);
 
       api.emitVolume(0.25);
@@ -538,6 +593,8 @@ void main() {
       addTearDown(container.dispose);
 
       container.read(desktopLyricsControllerProvider);
+      await settle(container);
+      await enableLyricBar(container);
       await settle(container);
 
       container.read(audioControllerProvider.notifier).play(track('1'));
