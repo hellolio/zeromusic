@@ -182,12 +182,10 @@ class _DesktopLyricsBarState extends State<DesktopLyricsBar> {
                     children: [
                       _VolumeControl(
                         key: const ValueKey('desktop_lyrics_volume'),
-                        volume:
-                            (_volumeOverride ?? widget.state.volume).clamp(
+                        volume: (_volumeOverride ?? widget.state.volume).clamp(
                           0.0,
                           1.0,
                         ),
-                        tooltip: strings.desktopLyricsVolume,
                         motionReduced: motionReduced,
                         onChanged: (v) => setState(() => _volumeOverride = v),
                         onChangeEnd: widget.onVolumeChanged,
@@ -195,15 +193,11 @@ class _DesktopLyricsBarState extends State<DesktopLyricsBar> {
                       const SizedBox(width: AppTokens.spaceS),
                       _BarButton(
                         key: const ValueKey('desktop_lyrics_prev'),
-                        tooltip: strings.desktopLyricsPrevious,
                         icon: CupertinoIcons.backward_end_fill,
                         onPressed: widget.onPrevious,
                       ),
                       _BarButton(
                         key: const ValueKey('desktop_lyrics_play_pause'),
-                        tooltip: state.isPlaying
-                            ? strings.desktopLyricsPause
-                            : strings.desktopLyricsPlay,
                         icon: state.isPlaying
                             ? CupertinoIcons.pause_fill
                             : CupertinoIcons.play_fill,
@@ -211,7 +205,6 @@ class _DesktopLyricsBarState extends State<DesktopLyricsBar> {
                       ),
                       _BarButton(
                         key: const ValueKey('desktop_lyrics_next'),
-                        tooltip: strings.desktopLyricsNext,
                         icon: CupertinoIcons.forward_end_fill,
                         onPressed: widget.onNext,
                       ),
@@ -230,10 +223,7 @@ class _DesktopLyricsBarState extends State<DesktopLyricsBar> {
                           child: IgnorePointer(
                             key: const ValueKey('desktop_lyrics_close_gate'),
                             ignoring: !_hovering,
-                            child: _CloseButton(
-                              tooltip: strings.desktopLyricsClose,
-                              onClose: widget.onClose,
-                            ),
+                            child: _CloseButton(onClose: widget.onClose),
                           ),
                         ),
                       ),
@@ -318,28 +308,19 @@ class _LyricSlot extends StatelessWidget {
 
 /// 悬停控制条按钮（⏮ / ⏯ / ⏭）：出现/消失由父层悬停态驱动。
 class _BarButton extends StatelessWidget {
-  const _BarButton({
-    super.key,
-    required this.tooltip,
-    required this.icon,
-    this.onPressed,
-  });
+  const _BarButton({super.key, required this.icon, this.onPressed});
 
-  final String tooltip;
   final IconData icon;
   final VoidCallback? onPressed;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Tooltip(
-      message: tooltip,
-      child: CupertinoButton(
-        padding: const EdgeInsets.all(AppTokens.spaceXs),
-        onPressed: onPressed,
-        minimumSize: const Size(28, 28),
-        child: Icon(icon, size: 15, color: theme.colorScheme.onSurface),
-      ),
+    return CupertinoButton(
+      padding: const EdgeInsets.all(AppTokens.spaceXs),
+      onPressed: onPressed,
+      minimumSize: const Size(28, 28),
+      child: Icon(icon, size: 15, color: theme.colorScheme.onSurface),
     );
   }
 }
@@ -352,14 +333,12 @@ class _VolumeControl extends StatelessWidget {
   const _VolumeControl({
     super.key,
     required this.volume,
-    required this.tooltip,
     required this.motionReduced,
     required this.onChanged,
     required this.onChangeEnd,
   });
 
   final double volume;
-  final String tooltip;
   final bool motionReduced;
   final ValueChanged<double> onChanged;
   final ValueChanged<double>? onChangeEnd;
@@ -367,38 +346,35 @@ class _VolumeControl extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Tooltip(
-      message: tooltip,
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            volume <= 0
-                ? CupertinoIcons.volume_mute
-                : CupertinoIcons.speaker_2_fill,
-            size: 14,
-            color: theme.colorScheme.onSurface,
-          ),
-          const SizedBox(width: AppTokens.spaceXs),
-          SizedBox(
-            width: 64,
-            height: 28,
-            child: SliderTheme(
-              data: SliderTheme.of(context).copyWith(
-                trackHeight: 2,
-                thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 5),
-                overlayShape: const RoundSliderOverlayShape(overlayRadius: 9),
-              ),
-              child: Slider(
-                key: const ValueKey('desktop_lyrics_volume_slider'),
-                value: volume,
-                onChanged: onChanged,
-                onChangeEnd: onChangeEnd,
-              ),
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(
+          volume <= 0
+              ? CupertinoIcons.volume_mute
+              : CupertinoIcons.speaker_2_fill,
+          size: 14,
+          color: theme.colorScheme.onSurface,
+        ),
+        const SizedBox(width: AppTokens.spaceXs),
+        SizedBox(
+          width: 64,
+          height: 28,
+          child: SliderTheme(
+            data: SliderTheme.of(context).copyWith(
+              trackHeight: 2,
+              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 5),
+              overlayShape: const RoundSliderOverlayShape(overlayRadius: 9),
+            ),
+            child: Slider(
+              key: const ValueKey('desktop_lyrics_volume_slider'),
+              value: volume,
+              onChanged: onChanged,
+              onChangeEnd: onChangeEnd,
             ),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
@@ -406,26 +382,22 @@ class _VolumeControl extends StatelessWidget {
 /// ✕ 关闭按钮：出现/消失由父层悬停态驱动，自身恒定满透明度
 /// （需求 §3.3：悬停才显示关闭入口；减弱动效由父层归零时长）。
 class _CloseButton extends StatelessWidget {
-  const _CloseButton({required this.tooltip, this.onClose});
+  const _CloseButton({this.onClose});
 
-  final String tooltip;
   final VoidCallback? onClose;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Tooltip(
-      message: tooltip,
-      child: CupertinoButton(
-        key: const ValueKey('desktop_lyrics_close'),
-        padding: const EdgeInsets.all(AppTokens.spaceXs),
-        onPressed: onClose,
-        minimumSize: const Size(28, 28),
-        child: Icon(
-          CupertinoIcons.xmark,
-          size: 14,
-          color: theme.colorScheme.onSurface,
-        ),
+    return CupertinoButton(
+      key: const ValueKey('desktop_lyrics_close'),
+      padding: const EdgeInsets.all(AppTokens.spaceXs),
+      onPressed: onClose,
+      minimumSize: const Size(28, 28),
+      child: Icon(
+        CupertinoIcons.xmark,
+        size: 14,
+        color: theme.colorScheme.onSurface,
       ),
     );
   }

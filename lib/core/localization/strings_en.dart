@@ -321,12 +321,6 @@ class AppStringsEn extends AppStrings {
   String get settingsDesktop => 'Desktop';
 
   @override
-  String get desktopLyrics => 'Desktop Lyrics';
-
-  @override
-  String get desktopLyricsClose => 'Close Desktop Lyrics';
-
-  @override
   String get desktopLyricsFontSize => 'Font Size';
 
   @override
@@ -346,23 +340,4 @@ class AppStringsEn extends AppStrings {
 
   @override
   String get desktopLyricsInterlude => '♪ Interlude ♪';
-
-  @override
-  String get desktopLyricsPlay => 'Play';
-
-  @override
-  String get desktopLyricsPause => 'Pause';
-
-  @override
-  String get desktopLyricsPrevious => 'Previous';
-
-  @override
-  String get desktopLyricsNext => 'Next';
-
-  @override
-  String get desktopLyricsVolume => 'Volume';
-
-  @override
-  String get desktopLyricsFocusHint =>
-      'Clicking the lyrics bar may bring this app to the front on this platform';
 }

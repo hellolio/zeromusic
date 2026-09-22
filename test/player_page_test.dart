@@ -78,8 +78,9 @@ void main() {
       container.read(audioControllerProvider.notifier).playQueue(queue);
       await tester.pumpAndSettle();
     }
-    // 播放页唯一入口：点按迷你播放条推入全屏路由。
-    await tester.tap(find.byType(MiniPlayer));
+    // 播放页唯一入口：点按迷你播放条非按钮区（封面）推入全屏路由。
+    // 不能点几何中心：桌面胶囊加宽后中心落在 ⏮ 命中区（见 helpers.dart 注释）。
+    await tapMiniPlayerToOpenPlayer(tester);
     await tester.pumpAndSettle();
     return e;
   }
@@ -312,10 +313,7 @@ void main() {
     // tint 会使雾渐变中段被染成黑色，形成中间黑带；回归锁定为不传。
     final glass = tester.widget<GlassOverlay>(
       find
-          .ancestor(
-            of: find.text('晨光'),
-            matching: find.byType(GlassOverlay),
-          )
+          .ancestor(of: find.text('晨光'), matching: find.byType(GlassOverlay))
           .first,
     );
     expect(glass.tint, isNull);
@@ -332,9 +330,9 @@ void main() {
     );
     // 20 首曲目：内容远超上限，验证钳制生效。
     final queue = List.generate(20, (i) => Track(id: 'q$i', title: '曲$i'));
-    ProviderScope.containerOf(
-      tester.element(find.byType(AdaptiveScaffold)),
-    ).read(audioControllerProvider.notifier).playQueue(queue);
+    ProviderScope.containerOf(tester.element(find.byType(AdaptiveScaffold)))
+        .read(audioControllerProvider.notifier)
+        .playQueue(queue);
     await tester.pumpAndSettle();
     await tester.tap(find.byType(MiniPlayer));
     await tester.pumpAndSettle();
@@ -367,9 +365,9 @@ void main() {
       overrides: fakeDataLayerOverrides(FakeDataLayer(seed: const [])),
     );
     final queue = List.generate(5, (i) => Track(id: 'q$i', title: '曲$i'));
-    ProviderScope.containerOf(
-      tester.element(find.byType(AdaptiveScaffold)),
-    ).read(audioControllerProvider.notifier).playQueue(queue);
+    ProviderScope.containerOf(tester.element(find.byType(AdaptiveScaffold)))
+        .read(audioControllerProvider.notifier)
+        .playQueue(queue);
     await tester.pumpAndSettle();
     await tester.tap(find.byType(MiniPlayer));
     await tester.pumpAndSettle();
@@ -597,8 +595,8 @@ void main() {
     await tester.pumpAndSettle();
 
     // 竖向音量窗口出现（锚定在按钮上方，非居中弹窗）。
-    expect(find.byKey(const ValueKey('player-volume-popover')), findsOneWidget);
-    final slider = find.byKey(const ValueKey('player-volume-slider'));
+    expect(find.byKey(const ValueKey('volume-popover')), findsOneWidget);
+    final slider = find.byKey(const ValueKey('volume-slider'));
     expect(slider, findsOneWidget);
     expect(find.byType(Slider), findsOneWidget);
 
@@ -624,9 +622,7 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('player-volume-button')));
     await tester.pumpAndSettle();
 
-    final rect = tester.getRect(
-      find.byKey(const ValueKey('player-volume-popover')),
-    );
+    final rect = tester.getRect(find.byKey(const ValueKey('volume-popover')));
     // 竖向窗口：明显窄于旧版（116），且不至于过窄不可用。
     expect(rect.width, lessThan(90));
     expect(rect.width, greaterThan(40));
@@ -640,7 +636,7 @@ void main() {
 
     // 音量窗的 key 就在 GlassOverlay 上。
     final glass = tester.widget<GlassOverlay>(
-      find.byKey(const ValueKey('player-volume-popover')),
+      find.byKey(const ValueKey('volume-popover')),
     );
     expect(glass.tint, isNull);
   });

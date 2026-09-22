@@ -7,12 +7,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/anim/app_curves.dart';
-import '../../core/localization/app_strings.dart';
 import '../../core/platform/device_type.dart';
 import '../../core/theme/app_tokens.dart';
 import '../../services/audio/audio_controller.dart';
 import '../../services/audio/track.dart';
+import '../../services/preferences/preferences_controller.dart';
 import '../components/glass_overlay.dart';
+import '../components/volume_popover.dart';
 import 'mini_player_bounce.dart';
 
 /// 全局迷你播放条「水滴胶囊」。
@@ -62,6 +63,12 @@ class MiniPlayer extends ConsumerWidget {
     final bounceTick = ref.watch(miniPlayerBounceProvider);
     final pressTick = ref.watch(miniPlayerPressProvider);
 
+    // 桌面歌词开关状态（仅桌面胶囊展示；写偏好后由
+    // DesktopLyricsController 响应式开合歌词条窗口）。
+    final desktopLyricsEnabled = ref.watch(
+      preferencesProvider.select((p) => p.value?.desktopLyricsEnabled ?? false),
+    );
+
     final content = deviceType == DeviceType.desktop
         ? _DesktopMiniPlayer(
             data: _CapsuleData.from(state),
@@ -71,6 +78,10 @@ class MiniPlayer extends ConsumerWidget {
             onTogglePlay: onTogglePlay,
             onNext: onNext,
             onPrev: onPrev,
+            desktopLyricsEnabled: desktopLyricsEnabled,
+            onToggleDesktopLyrics: () => ref
+                .read(preferencesProvider.notifier)
+                .setDesktopLyricsEnabled(!desktopLyricsEnabled),
           )
         : _SwipeableCapsule(
             data: _CapsuleData.from(state),
@@ -530,10 +541,9 @@ class _SwipeableCapsuleState extends State<_SwipeableCapsule>
           child: GlassOverlay(
             radius: AppTokens.radiusPill,
             // 雾基色分模式（同底栏）：浅色更白、深色更黑，提升文字对比。
-            fogColor:
-                Theme.of(context).brightness == Brightness.dark
-                    ? Colors.black
-                    : Colors.white,
+            fogColor: Theme.of(context).brightness == Brightness.dark
+                ? Colors.black
+                : Colors.white,
             child: ClipRRect(
               // 全胶囊圆角：圆角直径 = 条高（radiusPill 会被 RRect 自动钳制为高的一半）。
               borderRadius: BorderRadius.circular(AppTokens.radiusPill),
@@ -716,6 +726,8 @@ class _DesktopMiniPlayer extends StatelessWidget {
     this.onTogglePlay,
     this.onNext,
     this.onPrev,
+    this.desktopLyricsEnabled = false,
+    this.onToggleDesktopLyrics,
     this.bounceTick = 0,
     this.pressTick = 0,
   });
@@ -725,6 +737,10 @@ class _DesktopMiniPlayer extends StatelessWidget {
   final VoidCallback? onTogglePlay;
   final VoidCallback? onNext;
   final VoidCallback? onPrev;
+
+  /// 桌面歌词开关当前态（仅展示 + 高亮；切换由 [onToggleDesktopLyrics] 完成）。
+  final bool desktopLyricsEnabled;
+  final VoidCallback? onToggleDesktopLyrics;
 
   /// 迷你条回弹信号：变化时 [_Rebound] 播放一次 spring 回弹。
   final int bounceTick;
@@ -746,21 +762,24 @@ class _DesktopMiniPlayer extends StatelessWidget {
       },
       child: GestureDetector(
         onTap: onTap,
+        // opaque：胶囊内控件间隙（文字与按钮之间）也是点击热区，
+        // 否则中心点落在间隙时点按无法进入播放页。
+        behavior: HitTestBehavior.opaque,
         // 桌面端胶囊固定在 Positioned(right/bottom) 中，宽度无约束；
         // 给定固定宽度避免 stretch 纵向布局收到无限宽约束。
-        // 宽度收窄（480 → 380）：对标 Apple Music 迷你条的紧凑感。
+        // 宽度 440：控制区五个 40×40 按钮（含歌词开关/音量）之外，
+        // 仍保留歌名可读宽度（长名省略号截断）。
         child: SizedBox(
-          width: 380,
+          width: 440,
           child: _Rebound(
             bounceTick: bounceTick,
             pressTick: pressTick,
             child: GlassOverlay(
               radius: AppTokens.radiusPill,
               // 雾基色分模式（同底栏/移动迷你条）：浅色更白、深色更黑。
-              fogColor:
-                  Theme.of(context).brightness == Brightness.dark
-                      ? Colors.black
-                      : Colors.white,
+              fogColor: Theme.of(context).brightness == Brightness.dark
+                  ? Colors.black
+                  : Colors.white,
               padding: const EdgeInsets.symmetric(
                 horizontal: AppTokens.spaceM,
                 vertical: AppTokens.spaceXxs,
@@ -811,6 +830,8 @@ class _DesktopMiniPlayer extends StatelessWidget {
                         onTogglePlay: onTogglePlay,
                         onNext: onNext,
                         onPrev: onPrev,
+                        desktopLyricsEnabled: desktopLyricsEnabled,
+                        onToggleDesktopLyrics: onToggleDesktopLyrics,
                       ),
                     ],
                   ),
@@ -830,6 +851,8 @@ class _DesktopControl extends StatelessWidget {
     required this.onTogglePlay,
     required this.onNext,
     required this.onPrev,
+    required this.desktopLyricsEnabled,
+    required this.onToggleDesktopLyrics,
   });
 
   final bool isPlaying;
@@ -837,20 +860,26 @@ class _DesktopControl extends StatelessWidget {
   final VoidCallback? onNext;
   final VoidCallback? onPrev;
 
+  /// 桌面歌词开关当前态（开启时图标主色高亮）。
+  final bool desktopLyricsEnabled;
+  final VoidCallback? onToggleDesktopLyrics;
+
   @override
   Widget build(BuildContext context) {
-    final strings = context.strings;
+    final theme = Theme.of(context);
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         IconButton(
           onPressed: onPrev,
-          tooltip: strings.miniPrevious,
+          constraints: const BoxConstraints.tightFor(width: 40, height: 40),
+          padding: const EdgeInsets.all(6),
           icon: const Icon(CupertinoIcons.backward_end_fill, size: 20),
         ),
         IconButton(
           onPressed: onTogglePlay,
-          tooltip: strings.miniPlayPause,
+          constraints: const BoxConstraints.tightFor(width: 40, height: 40),
+          padding: const EdgeInsets.all(6),
           icon: AnimatedSwitcher(
             duration: AppCurves.quickMotion,
             transitionBuilder: (child, animation) =>
@@ -866,10 +895,62 @@ class _DesktopControl extends StatelessWidget {
         ),
         IconButton(
           onPressed: onNext,
-          tooltip: strings.miniNext,
+          constraints: const BoxConstraints.tightFor(width: 40, height: 40),
+          padding: const EdgeInsets.all(6),
           icon: const Icon(CupertinoIcons.forward_end_fill, size: 20),
         ),
+        // 桌面歌词开关（与原设置页同图标；开时主色高亮）。
+        IconButton(
+          key: const ValueKey('mini-player-desktop-lyrics'),
+          onPressed: onToggleDesktopLyrics,
+          constraints: const BoxConstraints.tightFor(width: 40, height: 40),
+          padding: const EdgeInsets.all(6),
+          icon: Icon(
+            CupertinoIcons.text_quote,
+            size: 20,
+            color: desktopLyricsEnabled ? theme.colorScheme.primary : null,
+          ),
+        ),
+        // 音量：点击在按钮上方弹出竖向滑杆小窗（与播放页同组件/同数据源）。
+        const _MiniVolumeButton(),
       ],
+    );
+  }
+}
+
+/// 迷你条音量按钮：静音感知图标（与播放页一致），
+/// 点击弹出竖向滑杆小窗；音量值读写偏好 defaultVolume（单数据源）。
+class _MiniVolumeButton extends ConsumerStatefulWidget {
+  const _MiniVolumeButton();
+
+  @override
+  ConsumerState<_MiniVolumeButton> createState() => _MiniVolumeButtonState();
+}
+
+class _MiniVolumeButtonState extends ConsumerState<_MiniVolumeButton> {
+  /// 弹窗定位锚点（挂在定宽包裹上，与播放页同模式）。
+  final GlobalKey _anchorKey = GlobalKey();
+
+  @override
+  Widget build(BuildContext context) {
+    final volume = ref.watch(
+      preferencesProvider.select((p) => p.value?.defaultVolume ?? 1.0),
+    );
+    return SizedBox(
+      key: _anchorKey,
+      width: 40,
+      child: IconButton(
+        key: const ValueKey('mini-player-volume'),
+        onPressed: () => showVolumePopover(context, _anchorKey),
+        constraints: const BoxConstraints.tightFor(width: 40, height: 40),
+        padding: const EdgeInsets.all(6),
+        icon: Icon(
+          volume <= 0
+              ? CupertinoIcons.volume_mute
+              : CupertinoIcons.speaker_2_fill,
+          size: 20,
+        ),
+      ),
     );
   }
 }

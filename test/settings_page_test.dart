@@ -6,7 +6,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:zeromusic/services/audio/equalizer_controller.dart';
-import 'package:zeromusic/services/desktop_lyrics/lyric_window_api.dart';
 import 'package:zeromusic/services/preferences/preferences_controller.dart';
 import 'package:zeromusic/ui/components/center_popup.dart';
 import 'package:zeromusic/ui/pages/settings/equalizer_sheet.dart';
@@ -16,7 +15,6 @@ import 'helpers.dart';
 import 'support/fake_audio_engine.dart';
 import 'support/fake_data_layer.dart';
 import 'support/fake_equalizer.dart';
-import 'support/fake_lyric_window_api.dart';
 import 'support/in_memory_preferences_store.dart';
 
 void main() {
@@ -434,15 +432,11 @@ void main() {
     });
   });
 
-  group('桌面歌词（仅桌面端）', () {
+  group('桌面歌词（开关在迷你条，设置页仅留子项）', () {
     testWidgets('TC-24 移动断点不显示桌面分组', (tester) async {
       await pumpSettings(tester); // 800 宽 < 桌面断点 840
 
       expect(
-        find.byKey(const ValueKey('settings-desktop-lyrics')),
-        findsNothing,
-      );
-      expect(
         find.byKey(const ValueKey('settings-desktop-lyrics-font')),
         findsNothing,
       );
@@ -450,59 +444,46 @@ void main() {
         find.byKey(const ValueKey('settings-desktop-lyrics-reset')),
         findsNothing,
       );
+      expect(find.text('Desktop'), findsNothing);
     });
 
-    testWidgets('TC-25/26 桌面断点显示分组；开关切换生效并持久化', (tester) async {
-      final api = FakeLyricWindowApi()..stealsFocus = true;
+    testWidgets('TC-25/26 开关不在设置页；程序化开启后子项出现、关闭后分组消失', (tester) async {
       final store = InMemoryPreferencesStore();
-      await pumpSettings(
-        tester,
-        store: store,
-        size: const Size(1200, 900),
-        extraOverrides: [lyricWindowApiProvider.overrideWithValue(api)],
-      );
+      await pumpSettings(tester, store: store, size: const Size(1200, 900));
 
+      // 开关已移至桌面迷你条：设置页不再有该开关行，默认关闭态整组隐藏。
       expect(
         find.byKey(const ValueKey('settings-desktop-lyrics')),
-        findsOneWidget,
-      );
-      // 关闭态：字号/恢复位置子项不展示（渐进披露）。
-      expect(
-        find.byKey(const ValueKey('settings-desktop-lyrics-font')),
         findsNothing,
       );
-      expect(
-        find.byKey(const ValueKey('settings-desktop-lyrics-reset')),
-        findsNothing,
-      );
+      expect(find.text('Desktop Lyrics'), findsNothing);
+      expect(find.text('Desktop'), findsNothing);
 
-      // 开 → 窗口打开 + 持久化 + 子项出现 + 抢焦点平台提示出现。
-      await tester.tap(find.byType(CupertinoSwitch));
+      // 模拟在迷你条上打开 → 字号/恢复位置子项出现并持久化。
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(SettingsPage)),
+      );
+      await container
+          .read(preferencesProvider.notifier)
+          .setDesktopLyricsEnabled(true);
       await tester.pumpAndSettle();
       expect(prefsAt(tester).desktopLyricsEnabled, isTrue);
       expect(store.lastSaved.desktopLyricsEnabled, isTrue);
-      expect(api.openState, isTrue);
       expect(
         find.byKey(const ValueKey('settings-desktop-lyrics-font')),
         findsOneWidget,
       );
       expect(
         find.byKey(const ValueKey('settings-desktop-lyrics-reset')),
-        findsOneWidget,
-      );
-      expect(
-        find.text(
-          'Clicking the lyrics bar may bring this app to the front '
-          'on this platform',
-        ),
         findsOneWidget,
       );
 
-      // 关 → 窗口关闭，提示与子项消失。
-      await tester.tap(find.byType(CupertinoSwitch));
+      // 关闭 → 分组（含标题）整体消失。
+      await container
+          .read(preferencesProvider.notifier)
+          .setDesktopLyricsEnabled(false);
       await tester.pumpAndSettle();
       expect(prefsAt(tester).desktopLyricsEnabled, isFalse);
-      expect(api.openState, isFalse);
       expect(
         find.byKey(const ValueKey('settings-desktop-lyrics-font')),
         findsNothing,
@@ -511,27 +492,23 @@ void main() {
         find.byKey(const ValueKey('settings-desktop-lyrics-reset')),
         findsNothing,
       );
-      expect(
-        find.text(
-          'Clicking the lyrics bar may bring this app to the front '
-          'on this platform',
-        ),
-        findsNothing,
-      );
+      expect(find.text('Desktop'), findsNothing);
     });
 
     testWidgets('TC-27 字号档位选择持久化', (tester) async {
-      // 字号入口仅在开启后显示：存储遗留的开关=开在启动时被强制归零
-      // （TC-07），先手动打开开关模拟用户操作。
       await pumpSettings(
         tester,
-        store: InMemoryPreferencesStore(
-          const AppPreferences(desktopLyricsEnabled: true),
-        ),
+        store: InMemoryPreferencesStore(),
         size: const Size(1200, 900),
       );
 
-      await tester.tap(find.byType(CupertinoSwitch));
+      // 开关在迷你条：这里程序化开启让字号入口出现。
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(SettingsPage)),
+      );
+      await container
+          .read(preferencesProvider.notifier)
+          .setDesktopLyricsEnabled(true);
       await tester.pumpAndSettle();
 
       await tester.tap(
@@ -556,8 +533,13 @@ void main() {
       );
       await pumpSettings(tester, store: store, size: const Size(1200, 900));
 
-      // 启动强制归零（TC-07）：先手动打开开关让恢复位置入口出现。
-      await tester.tap(find.byType(CupertinoSwitch));
+      // 启动强制归零（TC-07）：程序化重新打开让恢复位置入口出现。
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(SettingsPage)),
+      );
+      await container
+          .read(preferencesProvider.notifier)
+          .setDesktopLyricsEnabled(true);
       await tester.pumpAndSettle();
 
       await tester.tap(

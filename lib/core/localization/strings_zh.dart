@@ -320,12 +320,6 @@ class AppStringsZh extends AppStrings {
   String get settingsDesktop => '桌面';
 
   @override
-  String get desktopLyrics => '桌面歌词';
-
-  @override
-  String get desktopLyricsClose => '关闭桌面歌词';
-
-  @override
   String get desktopLyricsFontSize => '字号';
 
   @override
@@ -345,22 +339,4 @@ class AppStringsZh extends AppStrings {
 
   @override
   String get desktopLyricsInterlude => '♪ 间奏 ♪';
-
-  @override
-  String get desktopLyricsFocusHint => '当前平台点击歌词条会使应用获得焦点';
-
-  @override
-  String get desktopLyricsPlay => '播放';
-
-  @override
-  String get desktopLyricsPause => '暂停';
-
-  @override
-  String get desktopLyricsPrevious => '上一曲';
-
-  @override
-  String get desktopLyricsNext => '下一曲';
-
-  @override
-  String get desktopLyricsVolume => '音量';
 }

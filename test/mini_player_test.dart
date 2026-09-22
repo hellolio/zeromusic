@@ -9,6 +9,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:zeromusic/services/audio/audio_controller.dart';
 import 'package:zeromusic/services/audio/track.dart';
+import 'package:zeromusic/services/preferences/preferences_controller.dart';
 import 'package:zeromusic/ui/mini_player/mini_player.dart';
 import 'package:zeromusic/ui/pages/player/player_page.dart';
 import 'package:zeromusic/ui/scaffold/adaptive_scaffold.dart';
@@ -379,7 +380,7 @@ void main() {
     expect(glass.radius, AppTokens.radiusPill);
   });
 
-  testWidgets('桌面端：迷你条胶囊宽度收窄为 380 且保留液态玻璃', (tester) async {
+  testWidgets('桌面端：迷你条胶囊宽度 440 且保留液态玻璃', (tester) async {
     await pumpWithQueue(tester, viewport: const Size(1400, 900));
 
     final glass = tester.widget<GlassOverlay>(
@@ -390,8 +391,103 @@ void main() {
     // 液态玻璃保留（雾基色分模式：浅色白基）。
     expect(glass.fogColor, Colors.white);
 
-    // 固定宽度收窄：480 → 380。
-    expect(tester.getRect(find.byType(MiniPlayer)).width, 380);
+    // 加宽容纳歌词开关 + 音量按钮（控制钮同步收紧为 40×40）。
+    expect(tester.getRect(find.byType(MiniPlayer)).width, 440);
+  });
+
+  testWidgets('桌面端：桌面歌词开关切换偏好并高亮', (tester) async {
+    await pumpWithQueue(tester, viewport: const Size(1400, 900));
+
+    final button = find.byKey(const ValueKey('mini-player-desktop-lyrics'));
+    expect(button, findsOneWidget);
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(AdaptiveScaffold)),
+    );
+    expect(
+      container.read(preferencesProvider).value?.desktopLyricsEnabled,
+      isFalse,
+    );
+
+    // 开 → 偏好置开，图标主色高亮。
+    await tester.tap(button);
+    await tester.pumpAndSettle();
+    expect(
+      container.read(preferencesProvider).value?.desktopLyricsEnabled,
+      isTrue,
+    );
+    final context = tester.element(button);
+    final icon = tester.widget<Icon>(
+      find.descendant(
+        of: button,
+        matching: find.byIcon(CupertinoIcons.text_quote),
+      ),
+    );
+    expect(icon.color, Theme.of(context).colorScheme.primary);
+
+    // 关 → 偏好置关，高亮撤除。
+    await tester.tap(button);
+    await tester.pumpAndSettle();
+    expect(
+      container.read(preferencesProvider).value?.desktopLyricsEnabled,
+      isFalse,
+    );
+    expect(
+      tester
+          .widget<Icon>(
+            find.descendant(
+              of: button,
+              matching: find.byIcon(CupertinoIcons.text_quote),
+            ),
+          )
+          .color,
+      isNull,
+    );
+  });
+
+  testWidgets('桌面端：音量按钮弹出竖向滑杆，拖动联动偏好与引擎', (tester) async {
+    final engine = await pumpWithQueue(tester, viewport: const Size(1400, 900));
+
+    await tester.tap(find.byKey(const ValueKey('mini-player-volume')));
+    await tester.pumpAndSettle();
+
+    // 竖向音量窗口出现（锚定在按钮上方，与播放页同一公共组件）。
+    expect(find.byKey(const ValueKey('volume-popover')), findsOneWidget);
+    final slider = find.byKey(const ValueKey('volume-slider'));
+    expect(slider, findsOneWidget);
+
+    // 竖向滑杆：向下拖动 = 音量降低。
+    await tester.drag(slider, const Offset(0, 140), warnIfMissed: false);
+    await tester.pumpAndSettle();
+
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(AdaptiveScaffold)),
+    );
+    final volume =
+        container.read(preferencesProvider).value?.defaultVolume ?? 1.0;
+    expect(volume, lessThan(1.0));
+    expect(engine.lastVolume!, closeTo(volume, 1e-9));
+  });
+
+  testWidgets('桌面端：迷你条内不再有悬停提示', (tester) async {
+    await pumpWithQueue(tester, viewport: const Size(1400, 900));
+
+    expect(
+      find.descendant(
+        of: find.byType(MiniPlayer),
+        matching: find.byType(Tooltip),
+      ),
+      findsNothing,
+    );
+  });
+
+  testWidgets('移动端：不显示桌面歌词开关与音量按钮', (tester) async {
+    await pumpWithQueue(tester);
+
+    expect(
+      find.byKey(const ValueKey('mini-player-desktop-lyrics')),
+      findsNothing,
+    );
+    expect(find.byKey(const ValueKey('mini-player-volume')), findsNothing);
   });
 
   testWidgets('桌面端：迷你条不显示底部进度线', (tester) async {

@@ -9,6 +9,8 @@ import 'package:zeromusic/main.dart';
 import 'package:zeromusic/services/audio/audio_engine.dart';
 import 'package:zeromusic/services/audio/audio_engine_provider.dart';
 import 'package:zeromusic/services/preferences/preferences_controller.dart';
+import 'package:zeromusic/ui/mini_player/mini_player.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 import 'support/fake_audio_engine.dart';
 import 'support/fake_data_layer.dart';
@@ -59,6 +61,17 @@ class _NoAnimations extends StatelessWidget {
 /// 数据库助记 override。
 Override databaseOverride(AppDatabase db) =>
     databaseProvider.overrideWithValue(db);
+
+/// 点按迷你条非按钮区（封面）推入全屏播放页。
+///
+/// 为什么不点几何中心：桌面胶囊加宽至 440 后控制行（五个 40×40 按钮、
+/// 含命中扩展）占据右侧 220px，几何中心恰好落在 ⏮ 按钮命中区内，
+/// 点中心会触发“上一首”而非打开播放页；封面（局部 x≈16-56）始终是安全热区。
+Future<void> tapMiniPlayerToOpenPlayer(WidgetTester tester) async {
+  final topLeft = tester.getTopLeft(find.byType(MiniPlayer));
+  final centerDy = tester.getCenter(find.byType(MiniPlayer)).dy;
+  await tester.tapAt(Offset(topLeft.dx + 36, centerDy));
+}
 
 /// 测试用内存假数据层 override：替换 repository，使 widget 测试完全不触达 drift。
 List<Override> fakeDataLayerOverrides(FakeDataLayer layer) => [

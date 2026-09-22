@@ -350,9 +350,9 @@ void main() {
     expect(find.byType(SettingsPage), findsOneWidget);
     expect(find.text('测试歌曲'), findsOneWidget);
 
-    // 点迷你条推入全屏播放页。路由透明（opaque:false）：迷你条仍在树中、
+    // 点迷你条（封面非按钮区）推入全屏播放页。路由透明（opaque:false）：迷你条仍在树中、
     // 被全屏播放页的实心背景盖住，命中测试应落在播放页而非迷你条。
-    await tester.tap(find.byType(MiniPlayer));
+    await tapMiniPlayerToOpenPlayer(tester);
     await tester.pumpAndSettle();
     expect(find.byType(PlayerPage), findsOneWidget);
     expect(find.byType(MiniPlayer), findsOneWidget);

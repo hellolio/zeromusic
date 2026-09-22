@@ -126,8 +126,6 @@ abstract class AppStrings {
 
   // ---- 桌面歌词（桌面端专属） ----
   String get settingsDesktop;
-  String get desktopLyrics;
-  String get desktopLyricsClose;
   String get desktopLyricsFontSize;
   String get desktopLyricsFontSmall;
   String get desktopLyricsFontMedium;
@@ -135,12 +133,6 @@ abstract class AppStrings {
   String get desktopLyricsResetPosition;
   String get desktopLyricsNotPlaying;
   String get desktopLyricsInterlude;
-  String get desktopLyricsFocusHint;
-  String get desktopLyricsPlay;
-  String get desktopLyricsPause;
-  String get desktopLyricsPrevious;
-  String get desktopLyricsNext;
-  String get desktopLyricsVolume;
 }
 
 /// 通过 BuildContext 访问当前语言字符串。

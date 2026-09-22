@@ -320,12 +320,6 @@ class AppStringsJa extends AppStrings {
   String get settingsDesktop => 'デスクトップ';
 
   @override
-  String get desktopLyrics => 'デスクトップ歌詞';
-
-  @override
-  String get desktopLyricsClose => 'デスクトップ歌詞を閉じる';
-
-  @override
   String get desktopLyricsFontSize => '文字サイズ';
 
   @override
@@ -345,22 +339,4 @@ class AppStringsJa extends AppStrings {
 
   @override
   String get desktopLyricsInterlude => '♪ 間奏 ♪';
-
-  @override
-  String get desktopLyricsFocusHint => 'このプラットフォームでは歌詞バーをクリックするとアプリが前面に出ます';
-
-  @override
-  String get desktopLyricsPlay => '再生';
-
-  @override
-  String get desktopLyricsPause => '一時停止';
-
-  @override
-  String get desktopLyricsPrevious => '前の曲';
-
-  @override
-  String get desktopLyricsNext => '次の曲';
-
-  @override
-  String get desktopLyricsVolume => '音量';
 }
